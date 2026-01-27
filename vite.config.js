@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
   const organizationInitDate = '202503010000'; // 관리 시작일 : 202503010000
 
   return {
-    base: mode === 'production' ? '/money-busanqueeract-kr/' : '/',
+    base: '/',
     plugins: [
       vue(),
       vueDevTools(),
