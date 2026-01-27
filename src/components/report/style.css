@@ -1,0 +1,340 @@
+/*==================================
+  공통 레이아웃 스타일
+==================================*/
+.PAGE {
+    /* A4 세로 비율: 1 / 1.414 */
+    aspect-ratio: 1 / 1.414;
+    width: 100%;
+    max-width: 21cm;
+    max-height: 29.7cm;
+    padding: 1cm;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    background-color: var(--none-color);
+    box-shadow: var(--shadow-page);
+    margin-bottom: 1cm;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.PAGE_LANDSCAPE {
+    /* A4 가로 비율: 1.414 / 1 */
+    aspect-ratio: 1.414 / 1;
+    width: 100%;
+    max-width: 990px;
+    padding: 1cm;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    background-color: var(--none-color);
+    box-shadow: var(--shadow-page);
+    margin-bottom: 1cm;
+    box-sizing: border-box;
+}
+
+.PAGE_HEADER {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: var(--spacing-xl);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 0.5px solid var(--medium-color);
+}
+
+.page-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5pt;
+}
+
+.page-meta .subtitle {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+
+.page-meta .title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-extrabold);
+}
+
+.page-meta .description {
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+}
+
+.page-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: var(--font-size-xs);
+    gap: 20pt;
+}
+
+.page-info .currency-unit {
+    font-weight: var(--font-weight-normal);
+}
+
+.page-info .page-number {
+    font-weight: var(--font-weight-bold);
+}
+
+/*==================================
+  공통 테이블 기본 스타일
+==================================*/
+.PAGE_CONTENT {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.PAGE_CONTENT table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.PAGE_CONTENT th,
+.PAGE_CONTENT td {
+    letter-spacing: -0.5px;
+    padding: var(--table-cell-padding);
+    border: 1px solid var(--medium-color);
+    text-align: left;
+    line-height: var(--line-height-tight);
+}
+
+.PAGE_CONTENT th {
+    font-weight: var(--font-weight-bold);
+}
+
+/*==================================
+  TotalPage.vue
+==================================*/
+.mok-row,
+.hang-row {
+    font-size: var(--font-size-sm);
+}
+
+.hang-row {
+    background-color: var(--light-color);
+    font-weight: var(--font-weight-bold);
+}
+
+.total-row {
+    font-weight: var(--font-weight-bold);
+    background-color: var(--light-color);
+    border-top: 2px double var(--medium-color);
+}
+
+/*==================================
+  HistoryPage.vue
+==================================*/
+.transaction-row {
+    font-size: var(--font-size-sm);
+    letter-spacing: -0.5px;
+}
+
+/*==================================
+  BudgetMonitorPage.vue
+==================================*/
+.budget-detail-table thead th {
+    background-color: var(--light-color);
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+}
+
+.budget-detail-table tfoot th {
+    background-color: var(--light-color);
+}
+
+.budget-row {
+    font-size: var(--font-size-sm);
+}
+
+.budget-detail-table .mok-row {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    background-color: #f8f8f8;
+}
+
+.label-tag {
+    font-size: var(--font-size-xs);
+    color: var(--medium-color);
+    margin-right: 0.25rem;
+}
+
+.indent-1 {
+    padding-left: 1.5rem !important;
+}
+
+.indent-2 {
+    padding-left: 3rem !important;
+}
+
+.text-right {
+    text-align: right !important;
+}
+
+.over-income {
+    color: var(--income-color) !important;
+    font-weight: var(--font-weight-semibold);
+}
+
+.over-expense {
+    color: var(--expense-color) !important;
+    font-weight: var(--font-weight-semibold);
+}
+
+/*==================================
+  수입/지출 금액 색상 (공통)
+==================================*/
+.income-amount {
+    color: var(--income-color);
+}
+
+.expense-amount {
+    color: var(--expense-color);
+}
+
+/*==================================
+  ReceiptPage.vue (규격화된 영수증 스타일 통합)
+==================================*/
+
+.receipt-area-container {
+    padding-top: var(--spacing-xl);
+    margin-top: var(--spacing-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    flex-grow: 1;
+    height: 100%;
+}
+
+.receipt-item {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    margin-bottom: var(--spacing-xl);
+    flex-grow: 1;
+}
+
+.receipt-box {
+    width: 100%;
+    height: 16cm;
+    border: 0.1pt solid var(--medium-color);
+    padding: var(--spacing-sm);
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.receipt-image {
+    max-width: 100%;
+    max-height: 100%;
+    height: auto;
+    object-fit: contain;
+    border: none;
+    box-shadow: none;
+}
+
+.no-receipt-message {
+    margin-top: 40px;
+    padding-top: var(--spacing-xl);
+    border-top: 1px solid var(--medium-color);
+    width: 100%;
+}
+
+.no-receipt {
+    padding: 30px;
+    border: 1px dashed var(--medium-color);
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    color: var(--medium-color);
+}
+
+/*==================================
+  다크모드 스타일
+==================================*/
+[data-theme="dark"] .PAGE,
+[data-theme="dark"] .PAGE_LANDSCAPE {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .PAGE_HEADER {
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="dark"] .page-meta .subtitle,
+[data-theme="dark"] .page-meta .title,
+[data-theme="dark"] .page-meta .description {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .page-info .currency-unit,
+[data-theme="dark"] .page-info .page-number {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .PAGE_CONTENT th,
+[data-theme="dark"] .PAGE_CONTENT td {
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .hang-row {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .total-row {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-top-color: var(--border-color);
+}
+
+[data-theme="dark"] .mok-row {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .income-amount {
+    color: var(--income-color);
+}
+
+[data-theme="dark"] .expense-amount {
+    color: var(--expense-color);
+}
+
+[data-theme="dark"] .receipt-box {
+    border-color: var(--border-color);
+    background-color: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .no-receipt-message {
+    border-top-color: var(--border-color);
+}
+
+[data-theme="dark"] .no-receipt {
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .budget-detail-table thead th,
+[data-theme="dark"] .budget-detail-table tfoot th {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .budget-detail-table .mok-row {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .label-tag {
+    color: var(--text-secondary);
+}

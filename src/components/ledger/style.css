@@ -1,0 +1,65 @@
+.none-select {
+    user-select: none;
+    -moz-user-select: none;
+    -webkit-user-drag: none;
+}
+
+.label {
+    display: flex;
+    gap: 5pt;
+    padding: 2pt 5pt;
+    align-items: center;
+
+}
+
+
+.label>i {
+    color: var(--medieum-color);
+}
+
+.label.background {
+    border-radius: 5pt;
+    background-color: var(--light-color);
+}
+
+.label.select {
+    border-radius: 8px;
+    padding: 5px 8px;
+
+    cursor: pointer;
+    width: fit-content;
+}
+
+.label.select>i {
+    color: var(--strong-color);
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 500;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.disable {
+    display: none;
+}
+
+.modal>.modal-content>button.close-btn {
+    color: var(--danger-color);
+    cursor: pointer;
+}
+
+.modal-content {
+    background-color: var(--bg-primary);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--shadow-2xl);
+}
