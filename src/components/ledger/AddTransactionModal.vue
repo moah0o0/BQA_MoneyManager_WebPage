@@ -149,9 +149,7 @@
 
 .modal-content {
     width: 1280px;
-    max-width: 95vw;
     height: 720px;
-    max-height: 90vh;
     border-radius: 10px;
     padding: 50px;
 
