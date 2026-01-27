@@ -5,8 +5,9 @@
             <strong>미계정 거래 추가</strong>
             <small>{{ TRNASACTION_LIST.length }}건</small>
         </button>
-        <div class="modal" v-if="addTransactionModalStatus == true">
-            <div class="modal-content">
+        <Teleport to="body">
+            <div class="modal" v-if="addTransactionModalStatus == true">
+                <div class="modal-content">
                 <div class="modal-header">
                     <div class="meta">
                         <span class="title">미계정 거래 추가</span>
@@ -126,10 +127,26 @@
 
             </div>
         </div>
+        </Teleport>
     </template>
 </template>
 
 <style scoped>
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 2000;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
 .modal-content {
     width: 1280px;
     max-width: 95vw;
