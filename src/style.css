@@ -236,13 +236,23 @@
    ============================================ */
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0;
+    }
 }
 
 @keyframes slideUp {
@@ -250,6 +260,7 @@
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -261,6 +272,7 @@
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -272,6 +284,7 @@
         opacity: 0;
         transform: scale(0.95);
     }
+
     to {
         opacity: 1;
         transform: scale(1);
@@ -279,22 +292,51 @@
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
 }
 
 /* 애니메이션 유틸리티 클래스 */
-.animate-fade-in { animation: fadeIn var(--duration-200) var(--ease-out); }
-.animate-slide-up { animation: slideUp var(--duration-300) var(--ease-out); }
-.animate-slide-down { animation: slideDown var(--duration-300) var(--ease-out); }
-.animate-scale-in { animation: scaleIn var(--duration-200) var(--ease-out); }
-.animate-spin { animation: spin 1s linear infinite; }
-.animate-pulse { animation: pulse 2s var(--ease-in-out) infinite; }
+.animate-fade-in {
+    animation: fadeIn var(--duration-200) var(--ease-out);
+}
+
+.animate-slide-up {
+    animation: slideUp var(--duration-300) var(--ease-out);
+}
+
+.animate-slide-down {
+    animation: slideDown var(--duration-300) var(--ease-out);
+}
+
+.animate-scale-in {
+    animation: scaleIn var(--duration-200) var(--ease-out);
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+    animation: pulse 2s var(--ease-in-out) infinite;
+}
 
 /* ============================================
    📱 기본 레이아웃
@@ -477,7 +519,7 @@ body {
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
     transition: transform var(--duration-200) var(--ease-out),
-                box-shadow var(--duration-200) var(--ease-out);
+        box-shadow var(--duration-200) var(--ease-out);
 }
 
 .card-hover:hover {
@@ -594,7 +636,7 @@ body {
     background: var(--bg-primary);
     color: var(--text-primary);
     transition: border-color var(--transition-fast),
-                box-shadow var(--transition-fast);
+        box-shadow var(--transition-fast);
 }
 
 .input:focus {
@@ -672,11 +714,9 @@ body {
     position: fixed;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
     z-index: var(--z-modal);
     width: 90%;
-    max-width: 500px;
-    max-height: 90vh;
+
     background: var(--bg-primary);
     border-radius: var(--border-radius-2xl);
     box-shadow: var(--shadow-2xl);
@@ -737,8 +777,10 @@ body {
    ============================================ */
 
 @media print {
+
     /* 다크모드 무시 */
-    :root, [data-theme="dark"] {
+    :root,
+    [data-theme="dark"] {
         --bg-primary: #ffffff !important;
         --bg-secondary: #ffffff !important;
         --text-primary: #000000 !important;
