@@ -518,13 +518,20 @@ export default {
     async removeSelectedLedger(){
       if (!this.canEdit) {
         console.warn("권한 없음: 삭제 작업이 거부되었습니다.");
-        return; 
+        return;
       }
 
       if (this.SELECTED_TRANSACTION_LIST.length === 0) return;
-      
-      const promises = this.SELECTED_TRANSACTION_LIST.map(id => 
-        pb.collection("Ledger").delete(this.LEDGER_LIST.find(l => l.expand.transaction.id === id).id)
+
+      // 같은 transaction.id를 가진 모든 ledger를 찾아서 삭제
+      const ledgersToDelete = [];
+      this.SELECTED_TRANSACTION_LIST.forEach(transactionId => {
+        const matchingLedgers = this.LEDGER_LIST.filter(l => l.expand.transaction.id === transactionId);
+        ledgersToDelete.push(...matchingLedgers);
+      });
+
+      const promises = ledgersToDelete.map(ledger =>
+        pb.collection("Ledger").delete(ledger.id)
       );
 
       try {
