@@ -209,15 +209,16 @@
 .modal-content > .modal-function {
     display: flex;
     width: 100%;
-    height: 620px;
+    flex: 1;
+    min-height: 0;
 }
 
 
 .modal-content > .modal-function > .selectTransaction {
     width: 50%;
-    height: 630px;
+    height: 100%;
     overflow-y: auto;
-    overflow-x: hidden;    
+    overflow-x: hidden;
 }
 
 table.transaction {
@@ -316,14 +317,16 @@ input.select[type='checkbox']:checked::after {
 
 .modal-content > .modal-function > .createSettings {
     width: 50%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     gap: 30px;
+    overflow-y: auto;
 }
 
 .modal-content > .modal-function > .createSettings > .option {
     width: 100%;
-    height: 80px;
+    flex-shrink: 0;
     display: flex;
 
     flex-direction: column;
@@ -335,7 +338,8 @@ input.select[type='checkbox']:checked::after {
 
 .modal-content > .modal-function > .createSettings > .split {
     width: 100%;
-    height: 430px;
+    flex: 1;
+    min-height: 0;
     display: flex;
 
     flex-direction: column;
@@ -343,12 +347,12 @@ input.select[type='checkbox']:checked::after {
 
     padding-left: 50px;
     box-sizing: border-box;
-    
+
 }
 
 .modal-content > .modal-function > .createSettings > .add {
     width: 100%;
-    height: 50px;
+    flex-shrink: 0;
     display: flex;
 
     flex-direction: column;
@@ -356,7 +360,7 @@ input.select[type='checkbox']:checked::after {
 
     padding-left: 50px;
     box-sizing: border-box;
-    
+
 }
 
 
@@ -420,9 +424,10 @@ input.select[type='radio']:checked::after {
 .modal-content > .modal-function > .createSettings > .split > .spliter {
     width: 100%;
     height: 100%;
+    min-height: 400px;
     background-color: var(--light-color);
     border-radius: 15px;
-    
+
     display: flex;
     flex-direction: row;
 
