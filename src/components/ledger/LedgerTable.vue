@@ -25,6 +25,7 @@
     </div>
   </div>
 
+  <div class="ledger-table-wrapper">
   <table class="ledger">
     <thead>
     <tr class="ledger_pin">
@@ -150,6 +151,7 @@
     <tr v-else><td :colspan="10" style="text-align: center;">데이터가 없습니다.</td></tr>
     </tbody>
   </table>
+  </div>
 
   <div class="modal-overlay" v-if="filterModal.isOpen" @click.self="closeFilterModal">
     <div class="modal-content filter-modal">
@@ -1067,18 +1069,13 @@ button.remove_button > strong {
         margin-left: 0;
     }
 
-    /* 테이블 가로 스크롤 */
-    table.ledger {
-        display: block;
+    /* 테이블 래퍼로 가로 스크롤 처리 */
+    .ledger-table-wrapper {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        white-space: nowrap;
     }
 
-    table.ledger thead,
-    table.ledger tbody {
-        display: table;
-        width: 100%;
+    table.ledger {
         min-width: 900px;
     }
 
