@@ -66,46 +66,71 @@
                 </div>
 
                 <div class="budget-table-wrapper">
-                    <table class="budget-table">
+                    <table class="budget-table hierarchical">
                         <thead>
                             <tr>
-                                <th style="width: 12%">항</th>
-                                <th style="width: 22%">목</th>
-                                <th style="width: 22%">세목</th>
-                                <th style="width: 14%">수입예산</th>
-                                <th style="width: 14%">지출예산</th>
-                                <th style="width: 12%" v-if="canEdit && !selectedPeriod.is_closed">관리</th>
+                                <th style="width: 46%">분류</th>
+                                <th style="width: 17%">수입예산</th>
+                                <th style="width: 17%">지출예산</th>
+                                <th style="width: 16%" v-if="canEdit && !selectedPeriod.is_closed">관리</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="budget in budgetsWithRowspan" :key="budget.id">
-                                <td v-if="budget.hangRowspan > 0" :rowspan="budget.hangRowspan" class="merged-cell">
-                                    {{ getAssetLabel('hang', budget.hang) }}
-                                </td>
-                                <td v-if="budget.mokRowspan > 0" :rowspan="budget.mokRowspan" class="merged-cell">
-                                    {{ getAssetLabel('mok', budget.mok) }}
-                                </td>
-                                <td>{{ getAssetLabel('saemok', budget.saemok) }}</td>
-                                <td class="budget-amount income">{{ budget.income_budget > 0 ? '+' : '' }}{{ formatMoney(budget.income_budget) }}원</td>
-                                <td class="budget-amount expense">{{ budget.expense_budget > 0 ? '-' : '' }}{{ formatMoney(budget.expense_budget) }}원</td>
-                                <td v-if="canEdit && !selectedPeriod.is_closed" class="action-cell">
-                                    <button class="btn-icon" @click="openBudgetModal(budget)" title="수정">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn-icon danger" @click="deleteBudget(budget.id)" title="삭제">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
+                            <template v-for="(row, idx) in budgetsWithSubtotals" :key="idx">
+                                <!-- 항 헤더 -->
+                                <tr v-if="row.type === 'hang-header'" class="hang-header-row">
+                                    <td :colspan="(canEdit && !selectedPeriod.is_closed) ? 4 : 3" class="hang-header-cell">
+                                        <i class="bi bi-folder2"></i>
+                                        <span class="priority-badge">{{ row.hangPriority }}</span>
+                                        {{ row.hangLabel }}
+                                    </td>
+                                </tr>
+                                <!-- 목 헤더 -->
+                                <tr v-else-if="row.type === 'mok-header'" class="mok-header-row">
+                                    <td :colspan="(canEdit && !selectedPeriod.is_closed) ? 4 : 3" class="mok-header-cell">
+                                        <i class="bi bi-folder"></i>
+                                        <span class="priority-badge mok">{{ row.mokPriority }}</span>
+                                        {{ row.mokLabel }}
+                                    </td>
+                                </tr>
+                                <!-- 세목 항목 -->
+                                <tr v-else-if="row.type === 'item'" class="item-row">
+                                    <td class="item-cell">{{ getAssetLabel('saemok', row.saemok) }}</td>
+                                    <td class="budget-amount income">{{ row.income_budget > 0 ? '+' : '' }}{{ formatMoney(row.income_budget) }}원</td>
+                                    <td class="budget-amount expense">{{ row.expense_budget > 0 ? '-' : '' }}{{ formatMoney(row.expense_budget) }}원</td>
+                                    <td v-if="canEdit && !selectedPeriod.is_closed" class="action-cell">
+                                        <button class="btn-icon" @click="openBudgetModal(row)" title="수정">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn-icon danger" @click="deleteBudget(row.id)" title="삭제">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <!-- 목 소계 -->
+                                <tr v-else-if="row.type === 'mok-subtotal'" class="mok-subtotal-row">
+                                    <td class="subtotal-label mok-subtotal-label">{{ row.mokLabel }} 소계</td>
+                                    <td class="budget-amount income subtotal-amount">{{ row.incomeSum > 0 ? '+' : '' }}{{ formatMoney(row.incomeSum) }}원</td>
+                                    <td class="budget-amount expense subtotal-amount">{{ row.expenseSum > 0 ? '-' : '' }}{{ formatMoney(row.expenseSum) }}원</td>
+                                    <td v-if="canEdit && !selectedPeriod.is_closed"></td>
+                                </tr>
+                                <!-- 항 소계 -->
+                                <tr v-else-if="row.type === 'hang-subtotal'" class="hang-subtotal-row">
+                                    <td class="subtotal-label hang-subtotal-label">{{ row.hangLabel }} 합계</td>
+                                    <td class="budget-amount income subtotal-amount hang-subtotal-amount">{{ row.incomeSum > 0 ? '+' : '' }}{{ formatMoney(row.incomeSum) }}원</td>
+                                    <td class="budget-amount expense subtotal-amount hang-subtotal-amount">{{ row.expenseSum > 0 ? '-' : '' }}{{ formatMoney(row.expenseSum) }}원</td>
+                                    <td v-if="canEdit && !selectedPeriod.is_closed"></td>
+                                </tr>
+                            </template>
                             <tr v-if="BUDGETS.length === 0">
-                                <td :colspan="(canEdit && !selectedPeriod.is_closed) ? 6 : 5" class="empty-cell">
+                                <td :colspan="(canEdit && !selectedPeriod.is_closed) ? 4 : 3" class="empty-cell">
                                     예산 항목이 없습니다. 예산 항목을 추가해주세요.
                                 </td>
                             </tr>
                         </tbody>
                         <tfoot v-if="BUDGETS.length > 0">
-                            <tr>
-                                <th colspan="3">합계</th>
+                            <tr class="total-row">
+                                <th>총 합계</th>
                                 <th class="budget-amount income">+{{ formatMoney(totalIncomeBudget) }}원</th>
                                 <th class="budget-amount expense">-{{ formatMoney(totalExpenseBudget) }}원</th>
                                 <th v-if="canEdit && !selectedPeriod.is_closed"></th>
@@ -288,37 +313,96 @@ export default {
             });
         },
 
-        // rowspan 계산된 예산 목록
-        budgetsWithRowspan() {
+        // 항별/목별 소계가 포함된 계층적 예산 목록
+        budgetsWithSubtotals() {
             const items = this.sortedBudgets;
-            const hangCount = {};
-            const mokCount = {};
+            if (items.length === 0) return [];
 
-            // 항별, 목별 개수 계산
+            const result = [];
+            let currentHang = null;
+            let currentMok = null;
+            let hangItems = [];
+            let mokItems = [];
+
+            const flushMok = () => {
+                if (mokItems.length > 0) {
+                    // 목 내 세목들 출력
+                    for (const item of mokItems) {
+                        result.push({ type: 'item', ...item });
+                    }
+                    // 목 소계 (세목이 2개 이상일 때만)
+                    if (mokItems.length >= 2) {
+                        const incomeSum = mokItems.reduce((s, i) => s + (i.income_budget || 0), 0);
+                        const expenseSum = mokItems.reduce((s, i) => s + (i.expense_budget || 0), 0);
+                        result.push({
+                            type: 'mok-subtotal',
+                            mok: currentMok,
+                            mokLabel: this.getAssetLabel('mok', currentMok),
+                            incomeSum,
+                            expenseSum
+                        });
+                    }
+                    mokItems = [];
+                }
+            };
+
+            const flushHang = () => {
+                flushMok();
+                if (hangItems.length > 0) {
+                    // 항 소계
+                    const incomeSum = hangItems.reduce((s, i) => s + (i.income_budget || 0), 0);
+                    const expenseSum = hangItems.reduce((s, i) => s + (i.expense_budget || 0), 0);
+                    result.push({
+                        type: 'hang-subtotal',
+                        hang: currentHang,
+                        hangLabel: this.getAssetLabel('hang', currentHang),
+                        incomeSum,
+                        expenseSum
+                    });
+                    hangItems = [];
+                }
+            };
+
             for (const item of items) {
-                hangCount[item.hang] = (hangCount[item.hang] || 0) + 1;
-                const mk = `${item.hang}_${item.mok}`;
-                mokCount[mk] = (mokCount[mk] || 0) + 1;
+                // 항이 바뀌면 이전 항 마무리
+                if (currentHang !== null && item.hang !== currentHang) {
+                    flushHang();
+                }
+                // 목이 바뀌면 이전 목 마무리
+                if (currentMok !== null && (item.mok !== currentMok || item.hang !== currentHang)) {
+                    flushMok();
+                }
+
+                // 항 헤더 (새로운 항 시작)
+                if (item.hang !== currentHang) {
+                    result.push({
+                        type: 'hang-header',
+                        hang: item.hang,
+                        hangLabel: this.getAssetLabel('hang', item.hang),
+                        hangPriority: this.getPriority('hang', item.hang)
+                    });
+                    currentHang = item.hang;
+                }
+
+                // 목 헤더 (새로운 목 시작)
+                if (item.mok !== currentMok || item.hang !== currentHang) {
+                    result.push({
+                        type: 'mok-header',
+                        mok: item.mok,
+                        mokLabel: this.getAssetLabel('mok', item.mok),
+                        mokPriority: this.getPriority('mok', item.mok)
+                    });
+                    currentMok = item.mok;
+                }
+
+                hangItems.push(item);
+                mokItems.push(item);
             }
 
-            // 첫 등장 여부 추적
-            const hangSeen = {};
-            const mokSeen = {};
+            // 마지막 항/목 마무리
+            flushHang();
 
-            return items.map(item => {
-                const mk = `${item.hang}_${item.mok}`;
-                const isFirstHang = !hangSeen[item.hang];
-                const isFirstMok = !mokSeen[mk];
-
-                if (isFirstHang) hangSeen[item.hang] = true;
-                if (isFirstMok) mokSeen[mk] = true;
-
-                return {
-                    ...item,
-                    hangRowspan: isFirstHang ? hangCount[item.hang] : 0,
-                    mokRowspan: isFirstMok ? mokCount[mk] : 0
-                };
-            });
+            return result;
         },
 
         totalIncomeBudget() {
@@ -780,11 +864,127 @@ export default {
     border: 1px solid var(--light-color);
 }
 
-.merged-cell {
-    vertical-align: middle;
-    text-align: center;
-    font-weight: var(--font-weight-semibold);
+/* 계층적 테이블 스타일 */
+.budget-table.hierarchical {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* 항 헤더 */
+.hang-header-row td {
+    background: var(--strong-color);
+    color: white;
+    font-weight: var(--font-weight-bold);
+    font-size: 0.95em;
+    padding: var(--spacing-md) var(--spacing-lg) !important;
+    border: none !important;
+    border-bottom: 2px solid var(--strong-color) !important;
+}
+
+.hang-header-cell i {
+    margin-right: var(--spacing-xs);
+    opacity: 0.8;
+}
+
+.priority-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    margin-right: var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: var(--border-radius-sm);
+    font-size: 0.8em;
+    font-weight: var(--font-weight-bold);
+}
+
+.priority-badge.mok {
+    background: rgba(51, 122, 183, 0.15);
+    color: var(--strong-color);
+    font-size: 0.75em;
+    min-width: 20px;
+    height: 20px;
+}
+
+/* 목 헤더 */
+.mok-header-row td {
     background: var(--light-color);
+    font-weight: var(--font-weight-semibold);
+    font-size: 0.9em;
+    padding: var(--spacing-sm) var(--spacing-lg) !important;
+    padding-left: calc(var(--spacing-lg) + 1rem) !important;
+    color: var(--strong-color);
+    border-left: 3px solid var(--medium-color) !important;
+}
+
+.mok-header-cell i {
+    margin-right: var(--spacing-xs);
+    opacity: 0.6;
+    font-size: 0.9em;
+}
+
+/* 세목 항목 */
+.item-row td {
+    background: var(--none-color);
+}
+
+.item-cell {
+    padding-left: calc(var(--spacing-lg) + 2rem) !important;
+    font-size: 0.9em;
+}
+
+/* 목 소계 */
+.mok-subtotal-row td {
+    background: rgba(100, 116, 139, 0.08);
+    border-top: 1px dashed var(--medium-color) !important;
+}
+
+.mok-subtotal-label {
+    padding-left: calc(var(--spacing-lg) + 1rem) !important;
+    font-size: 0.85em;
+    font-weight: var(--font-weight-semibold);
+    color: var(--medium-color);
+    font-style: italic;
+}
+
+.subtotal-amount {
+    font-size: 0.9em;
+}
+
+/* 항 소계 */
+.hang-subtotal-row td {
+    background: rgba(51, 122, 183, 0.1);
+    border-top: 2px solid var(--strong-color) !important;
+    border-bottom: 2px solid var(--strong-color) !important;
+}
+
+.hang-subtotal-label {
+    font-weight: var(--font-weight-bold);
+    color: var(--strong-color);
+    font-size: 0.95em;
+}
+
+.hang-subtotal-amount {
+    font-weight: var(--font-weight-bold) !important;
+    font-size: 0.95em !important;
+}
+
+/* 총합계 */
+.total-row th {
+    background: var(--strong-color) !important;
+    color: white !important;
+    font-weight: var(--font-weight-bold);
+    font-size: 1em;
+}
+
+.total-row .income {
+    color: #93c5fd !important;
+}
+
+.total-row .expense {
+    color: #fca5a5 !important;
 }
 
 .budget-table thead th {
@@ -1142,7 +1342,7 @@ export default {
     }
 
     .budget-table {
-        min-width: 600px;
+        min-width: 480px;
     }
 
     .modal-content {
@@ -1226,11 +1426,67 @@ export default {
     border-color: var(--border-color);
 }
 
-[data-theme="dark"] .budget-table thead th,
-[data-theme="dark"] .budget-table tfoot th,
-[data-theme="dark"] .merged-cell {
+[data-theme="dark"] .budget-table thead th {
     background: var(--bg-secondary);
     color: var(--text-primary);
+}
+
+/* 다크모드 계층적 테이블 스타일 */
+[data-theme="dark"] .hang-header-row td {
+    background: var(--primary-700);
+    color: white;
+    border-bottom-color: var(--primary-600) !important;
+}
+
+[data-theme="dark"] .priority-badge {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .priority-badge.mok {
+    background: rgba(96, 165, 250, 0.2);
+    color: var(--primary-300);
+}
+
+[data-theme="dark"] .mok-header-row td {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-left-color: var(--primary-500) !important;
+}
+
+[data-theme="dark"] .item-row td {
+    background: var(--bg-primary);
+}
+
+[data-theme="dark"] .mok-subtotal-row td {
+    background: rgba(100, 116, 139, 0.15);
+    border-top-color: var(--border-color) !important;
+}
+
+[data-theme="dark"] .mok-subtotal-label {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .hang-subtotal-row td {
+    background: rgba(59, 130, 246, 0.15);
+    border-top-color: var(--primary-500) !important;
+    border-bottom-color: var(--primary-500) !important;
+}
+
+[data-theme="dark"] .hang-subtotal-label {
+    color: var(--primary-400);
+}
+
+[data-theme="dark"] .total-row th {
+    background: var(--primary-700) !important;
+    color: white !important;
+}
+
+[data-theme="dark"] .total-row .income {
+    color: #93c5fd !important;
+}
+
+[data-theme="dark"] .total-row .expense {
+    color: #fca5a5 !important;
 }
 
 [data-theme="dark"] .budget-amount {
