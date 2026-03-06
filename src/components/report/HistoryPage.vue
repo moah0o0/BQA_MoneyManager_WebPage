@@ -101,8 +101,8 @@ export default {
 
         // 세로 A4 기준 페이지당 행 수 (큰 글씨 기준)
         pagedAssetsResults() {
-            const FIRST_PAGE_ROWS = 14;
-            const OTHER_PAGE_ROWS = 20;
+            const FIRST_PAGE_ROWS = 11;
+            const OTHER_PAGE_ROWS = 16;
             const pages = [];
             let i = 0;
 
