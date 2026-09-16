@@ -123,7 +123,7 @@
           class="select"
           :checked="allVisibleSelected"
           :indeterminate.prop="someVisibleSelected && !allVisibleSelected"
-          :disabled="!canEdit || filteredLedgerList.length === 0"
+          :disabled="!canEdit || selectableLedgers.length === 0"
           aria-label="보이는 내역 모두 선택"
           @change="toggleSelectAllVisible"
         />
@@ -141,7 +141,7 @@
     </thead>
     <tbody>
     <template v-if="filteredLedgerList.length && ASSETS_LIST">
-      <tr :class="{'ledger_row': true, 'selected': isLedgerSelected(LEDGER.expand.transaction.id), 'invalid-row': isInvalid(LEDGER), 'is-cursor-row': focus.row === rowIndex}"
+      <tr :class="{'ledger_row': true, 'selected': isLedgerSelected(LEDGER.expand.transaction.id), 'invalid-row': isInvalid(LEDGER) && !isLocked(LEDGER), 'is-cursor-row': focus.row === rowIndex, 'is-locked': isLocked(LEDGER)}"
           v-for="(LEDGER, rowIndex) in filteredLedgerList"
           :key="LEDGER.id"
           role="row"
@@ -152,7 +152,8 @@
                  :tabindex="tabIndexOf(rowIndex, 0)"
                  @change="canEdit ? selectLedgerRow(LEDGER.expand.transaction.id) : null"
                  :checked="isLedgerSelected(LEDGER.expand.transaction.id)"
-                 :disabled="!canEdit"
+                 :disabled="!canEdit || isLocked(LEDGER)"
+                 :title="isLocked(LEDGER) ? '잠근 목으로 적힌 줄입니다' : undefined"
                  :aria-label="`${datetimeFormatter(LEDGER.expand.transaction.datetime)} ${LEDGER.money.toLocaleString()}원 선택`"/>
         </td>
 
@@ -175,7 +176,7 @@
           <DropdownLabel
               type="Hang"
               :is-require="true"
-              :disabled="!canEdit"
+              :disabled="!canEdit || isLocked(LEDGER)"
               :assets-id="LEDGER.hang"
               :assets-list="ASSETS_LIST.Hang"
               :ledger-record="LEDGER"
@@ -188,10 +189,14 @@
         </td>
 
         <td role="gridcell" :data-cell="`${rowIndex}-3`">
+          <span v-if="isLocked(LEDGER)" class="lock-mark" title="잠근 목이라 고칠 수 없습니다">
+            <i class="bi bi-lock-fill" aria-hidden="true"></i>
+            <span class="sr-only">잠근 목이라 고칠 수 없습니다.</span>
+          </span>
           <DropdownLabel
               type="Mok"
               :is-require="true"
-              :disabled="!canEdit"
+              :disabled="!canEdit || isLocked(LEDGER)"
               :assets-id="LEDGER.mok"
               :assets-list="ASSETS_LIST.Mok"
               :ledger-record="LEDGER"
@@ -207,7 +212,7 @@
           <DropdownLabel
               type="Saemok"
               :is-require="true"
-              :disabled="!canEdit"
+              :disabled="!canEdit || isLocked(LEDGER)"
               :assets-id="LEDGER.saemok"
               :assets-list="ASSETS_LIST.Saemok"
               :ledger-record="LEDGER"
@@ -225,7 +230,7 @@
               :ledger-record-id="LEDGER.id"
               :original-reason-text="LEDGER.reason"
               :placeholder="LEDGER.expand.transaction.description"
-              :disabled="!canEdit"
+              :disabled="!canEdit || isLocked(LEDGER)"
               :is-open="openCell === `reason-${LEDGER.id}`"
               :initial-text="pendingInput || null"
               :tabindex="tabIndexOf(rowIndex, 5)"
@@ -242,7 +247,7 @@
         <td role="gridcell" :data-cell="`${rowIndex}-6`">
           <ReceiptLabel
               :ledger-record="LEDGER"
-              :canEdit="canEdit"
+              :canEdit="canEdit && !isLocked(LEDGER)"
               :tabindex="tabIndexOf(rowIndex, 6)"
               @update-complete="getLedger"/>
         </td>
@@ -627,14 +632,19 @@ export default {
     },
 
     /** 보이는 줄 가운데 고른 것 */
+    /** 잠근 줄은 고를 수 없으므로 셈에서 뺀다 */
+    selectableLedgers() {
+      return this.filteredLedgerList.filter(l => !this.isLocked(l))
+    },
+
     visibleSelectedCount() {
-      return this.filteredLedgerList
+      return this.selectableLedgers
         .filter(l => this.SELECTED_TRANSACTION_LIST.includes(l.expand.transaction.id)).length
     },
 
     allVisibleSelected() {
-      return this.filteredLedgerList.length > 0
-        && this.visibleSelectedCount === this.filteredLedgerList.length
+      return this.selectableLedgers.length > 0
+        && this.visibleSelectedCount === this.selectableLedgers.length
     },
 
     someVisibleSelected() {
@@ -665,7 +675,7 @@ export default {
 
       if (type === 'Mok') {
         if (!this.commonHang) return []
-        list = list.filter(m => m.expand?.parent_hang?.id === this.commonHang)
+        list = list.filter(m => m.expand?.parent_hang?.id === this.commonHang && !m.lock)
       }
 
       if (type === 'Saemok' && !this.commonMok) return []
@@ -691,6 +701,15 @@ export default {
   methods: {
     zeroPad(number, desiredLength){
       return String(number).padStart(desiredLength, '0');
+    },
+
+    /**
+     * 잠근 목으로 적힌 줄인가.
+     * 잠근 목은 '더는 쓰지 않기로 한 것'이라, 그 줄을 다시 건드리면
+     * 이미 뽑아 둔 지난 보고서와 어긋난다 — 보기만 하고 고치지는 못하게 한다.
+     */
+    isLocked(ledger) {
+      return !!ledger?.expand?.mok?.lock
     },
 
     isInvalid(ledger) {
@@ -739,6 +758,10 @@ export default {
       const ledger = this.filteredLedgerList[row]
       const key = CELL_KEY[col]
       if (!ledger || !key) return
+      if (this.isLocked(ledger)) {
+        this.showStatus('잠근 목으로 적힌 줄이라 고칠 수 없습니다')
+        return
+      }
 
       this.focus = { row, col }
       this.pendingInput = query
@@ -1009,6 +1032,10 @@ export default {
       const above = this.filteredLedgerList[rowIndex - 1]
       const target = this.filteredLedgerList[rowIndex]
       if (!above || !target) return
+      if (this.isLocked(target)) {
+        this.showStatus('잠근 목으로 적힌 줄이라 고칠 수 없습니다')
+        return
+      }
 
       if (!above.hang && !above.mok && !above.saemok) {
         this.showStatus('윗줄에 적힌 항·목·세목이 없습니다')
@@ -1031,7 +1058,7 @@ export default {
     },
 
     async saveLedger(ledger, patch, message) {
-      if (!this.canEdit) return
+      if (!this.canEdit || this.isLocked(ledger)) return
 
       const before = {}
       Object.keys(patch).forEach(k => { before[k] = ledger[k] })
@@ -1132,9 +1159,12 @@ export default {
       let list = [...this.ASSETS_LIST[type]];
       const pendingHangIds = this.pendingFilters.Hang;
 
-      // 목 거르개는 항 거르개에 딸린다
-      if (type === 'Mok' && pendingHangIds.length > 0) {
-        list = list.filter(mok => pendingHangIds.includes(mok.parent_hang));
+      // 잠근 목은 거르개에도 내놓지 않는다
+      if (type === 'Mok') {
+        list = list.filter(mok => !mok.lock)
+        if (pendingHangIds.length > 0) {
+          list = list.filter(mok => pendingHangIds.includes(mok.parent_hang));
+        }
       }
 
       const desiredLength = PAD[type];
@@ -1152,6 +1182,9 @@ export default {
 
     selectLedgerRow(id){
       if (!this.canEdit) return;
+      // 잠근 줄은 한꺼번에 바꾸거나 지우는 대상이 되어서도 안 된다
+      const target = this.LEDGER_LIST.find(l => l.expand.transaction.id === id)
+      if (this.isLocked(target)) return;
 
       const index = this.SELECTED_TRANSACTION_LIST.indexOf(id);
       if(index > -1){
@@ -1175,7 +1208,9 @@ export default {
     selectAllVisible() {
       if (!this.canEdit) return
       this.SELECTED_TRANSACTION_LIST = [
-        ...new Set(this.filteredLedgerList.map(l => l.expand.transaction.id))
+        ...new Set(this.filteredLedgerList
+          .filter(l => !this.isLocked(l))
+          .map(l => l.expand.transaction.id))
       ]
       this.showStatus(`보이는 ${this.SELECTED_TRANSACTION_LIST.length}건을 모두 골랐습니다`)
     },
@@ -1578,6 +1613,27 @@ input.select[type='checkbox'] {
 input.select[type='checkbox']:disabled {
     cursor: default;
     opacity: 0.4;
+}
+
+/*
+   잠근 목으로 적힌 줄. 보이기는 하되 못 고친다 —
+   지우면 지난 보고서가 어긋나므로 기록은 그대로 두고 손만 못 대게 한다.
+*/
+tr.ledger_row.is-locked td {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+tr.ledger_row.is-locked:hover td {
+    background-color: var(--bg-secondary);
+}
+
+.lock-mark {
+    display: inline-flex;
+    align-items: center;
+    margin-right: var(--spacing-1);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
 }
 
 /* 지금 손이 가 있는 줄. 어느 줄에서 키를 누르는지 보여야 한다 */
