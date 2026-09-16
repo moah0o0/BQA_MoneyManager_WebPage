@@ -121,10 +121,15 @@
     table-layout: fixed;
 }
 
+/*
+    종이에 찍는 표는 화면 표보다 줄이 낮아야 한다.
+    화면 표의 여백(10px 12px)을 그대로 쓰면 한 줄이 46px이 되어 A4 한 장에
+    스무 줄밖에 못 담는다. 손가락으로 누를 일이 없는 종이에서는 그만한 여백이 필요 없다.
+*/
 .PAGE_CONTENT th,
 .PAGE_CONTENT td {
     letter-spacing: -0.5px;
-    padding: var(--table-cell-padding);
+    padding: 4px 8px;
     border: 1px solid var(--medium-color);
     text-align: left;
     line-height: var(--line-height-tight);

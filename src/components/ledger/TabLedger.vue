@@ -1,8 +1,9 @@
 <template>
     <div class="tab-root">
         <template v-if="loginStatus == true">
+            <!-- 제목과 설명을 한 줄에 둔다. 이 화면에서 봐야 하는 것은 표다 -->
             <div class="page-head">
-                <div>
+                <div class="head-text">
                     <h1 class="page-title">장부</h1>
                     <p class="page-desc">은행에서 불러온 거래에 항·목·세목과 내용을 적습니다.</p>
                 </div>
@@ -244,16 +245,53 @@ export default {
 </script>
 
 <style scoped>
+/*
+    표가 화면 끝까지 내려오게 한다.
+    예전에는 표에 `max-height: calc(100vh - 320px)`를 박아 두어서, 위 부속이
+    조금만 늘어도 표가 그만큼 짧아졌다. 게다가 페이지까지 함께 굴러
+    머리줄을 붙여 둔 보람이 없었다. 이제 남는 자리를 전부 표가 가진다.
+*/
 .tab-root {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-4);
+    gap: var(--spacing-3);
+    height: calc(100vh - var(--header-height) - var(--spacing-6) * 2);
+    min-height: 480px;
+}
+
+.page-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    margin-bottom: 0;
+}
+
+.head-text {
+    display: flex;
+    align-items: baseline;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+}
+
+.page-head .page-title {
+    font-size: var(--text-xl);
+}
+
+.page-head .page-desc {
+    margin: 0;
+}
+
+.page-head .acts {
+    margin-left: auto;
 }
 
 .toolbar {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-2);
+    flex-shrink: 0;
 }
 
 .filter {
@@ -287,8 +325,8 @@ export default {
 }
 
 .month {
-    min-width: 38px;
-    min-height: 32px;
+    min-width: 36px;
+    min-height: 28px;
     padding: 0 var(--spacing-2);
     border: 1px solid transparent;
     border-radius: var(--border-radius-md);
