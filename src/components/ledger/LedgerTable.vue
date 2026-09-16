@@ -818,7 +818,15 @@ export default {
       if (!cell) return
 
       const [row, col] = cell.dataset.cell.split('-').map(Number)
-      const typing = this.isTypingTarget(e.target)
+
+      /*
+        글을 고치는 중이면 그 칸이 키를 통째로 맡는다.
+        표가 먼저 가로채면 Ctrl/Cmd+A가 '글 전체 고르기'가 아니라
+        '줄 전체 고르기'가 되어 버린다 — 적던 사람은 무슨 일이 난 건지 알 수 없다.
+        Ctrl+D도 마찬가지다(맥에서는 글자 지우기다).
+        칸이 스스로 맡는 Enter · Tab · Esc는 그 칸의 손잡이에 달려 있다.
+      */
+      if (this.isTypingTarget(e.target)) return
 
       // 윗줄의 분류를 그대로 가져온다 — 같은 성격의 거래가 잇달아 들어오는 일이 많다
       if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
@@ -833,9 +841,6 @@ export default {
         this.selectAllVisible()
         return
       }
-
-      // 고치는 중에는 그 칸이 스스로 키를 맡는다 (좌우 방향키는 글자 사이를 오가야 한다)
-      if (typing) return
 
       switch (e.key) {
         case 'ArrowDown':
