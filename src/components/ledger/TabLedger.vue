@@ -25,8 +25,8 @@
                 예전에는 눌리는 자리가 div라 키보드로는 닿지 않았고,
                 보고 있는 달도 글자 색으로만 알렸다.
             -->
-            <div class="toolbar none-select">
-                <div class="filter" role="group" aria-label="기간 고르기">
+            <div class="toolbar none-select" @keydown="onFilterKeydown">
+                <div class="filter" role="toolbar" aria-label="기간 고르기" aria-orientation="horizontal">
                     <div class="date-filter" v-for="[year, months] in Object.entries(filterDateList)" :key="year">
                         <span class="year num">{{ year }}</span>
                         <button
@@ -34,16 +34,18 @@
                             :key="month"
                             type="button"
                             class="month num"
-                            :class="{ active: filterYear == year && filterMonth == month }"
-                            :aria-pressed="filterYear == year && filterMonth == month ? 'true' : 'false'"
+                            :class="{ active: isOn(year, month) }"
+                            :tabindex="isOn(year, month) ? 0 : -1"
+                            :aria-pressed="isOn(year, month) ? 'true' : 'false'"
                             :aria-label="`${year}년 ${month}월`"
                             @click="changeFilter(Number(year), month)"
                         >{{ month }}</button>
                         <button
                             type="button"
                             class="month is-all"
-                            :class="{ active: filterYear == year && filterMonth == 'all' }"
-                            :aria-pressed="filterYear == year && filterMonth == 'all' ? 'true' : 'false'"
+                            :class="{ active: isOn(year, 'all') }"
+                            :tabindex="isOn(year, 'all') ? 0 : -1"
+                            :aria-pressed="isOn(year, 'all') ? 'true' : 'false'"
                             :aria-label="`${year}년 전체`"
                             @click="changeFilter(Number(year), 'all')"
                         >전체</button>
@@ -105,6 +107,40 @@ export default {
     },
 
     methods: {
+        isOn(year, month) {
+            return this.filterYear == year && this.filterMonth == month
+        },
+
+        /**
+         * 달 고르개도 탭 자리 하나로 묶는다(roving tabindex).
+         * 해가 두엇만 쌓여도 단추가 서른 개라, 장부까지 가는 데만 Tab을 서른 번 눌러야 했다.
+         * 안에서는 방향키로 옮긴다.
+         */
+        onFilterKeydown(e) {
+            const KEYS = ['ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowUp', 'Home', 'End']
+            if (!KEYS.includes(e.key)) return
+
+            const buttons = [...e.currentTarget.querySelectorAll('button.month')]
+            const here = buttons.indexOf(e.target)
+            if (here < 0) return
+
+            e.preventDefault()
+
+            let next = here
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = here + 1
+            else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = here - 1
+            else if (e.key === 'Home') next = 0
+            else if (e.key === 'End') next = buttons.length - 1
+
+            // 끝에서 끝으로 돌아온다 — 막다른 길을 만들지 않는다
+            if (next < 0) next = buttons.length - 1
+            else if (next >= buttons.length) next = 0
+
+            // 옮기면 그 달을 바로 보여 준다. 고르기 위해 한 번 더 누르게 하지 않는다
+            buttons[next].focus()
+            buttons[next].click()
+        },
+
         async loadClosedPeriods() {
             try {
                 this.closedPeriods = await pb.collection('Periods').getFullList({

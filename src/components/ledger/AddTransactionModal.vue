@@ -29,7 +29,15 @@
                         <thead>
                             <tr class="transaction_pin">
                                 <th scope="col" style="width:8%;">
-                                    <span class="sr-only">고르기</span>
+                                    <!-- 쉰 건을 한 건씩 체크하게 두면 그것부터가 일이다 -->
+                                    <input
+                                        type="checkbox"
+                                        class="select"
+                                        :checked="allSelected"
+                                        :indeterminate.prop="SELECTED_TRANSACTION_LIST.length > 0 && !allSelected"
+                                        aria-label="모두 고르기"
+                                        @change="toggleSelectAll"
+                                    >
                                 </th>
                                 <th scope="col" style="width:13%;">구분</th>
                                 <th scope="col" style="width:19%;">일시</th>
@@ -144,8 +152,13 @@
 
             <template #footer>
                 <span class="foot-count">
-                    {{ SELECTED_TRANSACTION_LIST.length ? `${SELECTED_TRANSACTION_LIST.length}건 고름` : '고른 거래 없음' }}
+                    {{ SELECTED_TRANSACTION_LIST.length
+                        ? `${TRNASACTION_LIST.length}건 가운데 ${SELECTED_TRANSACTION_LIST.length}건 고름`
+                        : `아직 안 적은 거래 ${TRNASACTION_LIST.length}건` }}
                 </span>
+                <button type="button" class="btn btn-ghost" @click="toggleSelectAll">
+                    {{ allSelected ? '모두 해제' : '전부 고르기' }}
+                </button>
                 <button type="button" class="btn btn-ghost" @click="closeModalNow">닫기</button>
                 <button
                     type="button"
@@ -561,6 +574,11 @@ export default {
     },
 
     computed: {
+        allSelected() {
+            return this.TRNASACTION_LIST?.length > 0
+                && this.SELECTED_TRANSACTION_LIST.length === this.TRNASACTION_LIST.length
+        },
+
         /** 추가할 수 있는 때인지 한곳에서 정한다 — 단추 두 개를 번갈아 감추던 자리다 */
         canSubmit() {
             if (this.ADD_TYPE === 'GENERAL') return this.SELECTED_TRANSACTION_LIST.length > 0
@@ -587,6 +605,20 @@ export default {
         datetimeFormatter(str){
             str = String(str)
             return str.substring(0, 12).replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/,"$1-$2-$3 $4:$5")
+        },
+
+        /**
+         * 아직 안 적은 거래를 한 번에 다 고른다.
+         * 달마다 쌓인 것을 옮기는 일이라, 대개는 '전부'가 답이다.
+         */
+        toggleSelectAll() {
+            if (this.allSelected) {
+                this.SELECTED_TRANSACTION_LIST = []
+                return
+            }
+            this.SELECTED_TRANSACTION_LIST = [...this.TRNASACTION_LIST]
+            // 여러 건을 고르면 '분할'은 쓸 수 없다 — 방법을 함께 맞춰 준다
+            if (this.SELECTED_TRANSACTION_LIST.length !== 1) this.ADD_TYPE = 'GENERAL'
         },
 
         /** 창을 닫을 때마다 목록을 다시 맞춘다 — 안에서 추가한 것이 밖에도 보여야 한다 */
