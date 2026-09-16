@@ -1,47 +1,71 @@
 <template>
-<div class="main-content none-select">
+<div class="tab-root none-select">
     <div class="content-area">
     <template v-if="loginStatus === true">
         
-        <div class="FILTER">
-            <span class="filter-title">공금보고서 발급 기간설정</span>
-            
-            <div class="date-range-filter">
-                <select v-model="selectedStartYearMonth" @change="updateEndMonthOptions">
-                    <option :value="null">시작일 미선택</option>
-                    <option v-for="date in availableDates" :key="date.value" :value="date.value">
-                        {{ date.text }}
-                    </option>
-                </select>
-                ~
-                <select v-model="selectedEndYearMonth" @change="initRecordList">
-                    <option :value="null">종료일 미선택</option>
-                    <option v-for="date in endMonthOptions" :key="date.value" :value="date.value">
-                        {{ date.text }}
-                    </option>
-                </select>
+        <div class="page-head no-print">
+            <div>
+                <h1 class="page-title">공금보고서</h1>
+                <p class="page-desc">기간과 서식을 고르면 아래에 미리 보기가 뜹니다. 그대로 PDF로 받을 수 있습니다.</p>
             </div>
-            
-            <div class="report-type-filter button-group">
-                <button
-                    v-for="option in reportOptions"
-                    :key="option.key"
-                    :class="['report-type-btn', { 'selected': this[`is${option.key.charAt(0).toUpperCase() + option.key.slice(1)}Selected`] }]"
-                    @click="toggleReportType(option.key)"
-                >
-                    {{ option.label }}
-                </button>
+        </div>
+
+        <div class="FILTER">
+            <div class="filter-line">
+                <span class="filter-label" id="report-range-label">기간</span>
+                <div class="date-range-filter" role="group" aria-labelledby="report-range-label">
+                    <label class="sr-only" for="report-start">시작 달</label>
+                    <select id="report-start" v-model="selectedStartYearMonth" @change="updateEndMonthOptions">
+                        <option :value="null">시작 달</option>
+                        <option v-for="date in availableDates" :key="date.value" :value="date.value">
+                            {{ date.text }}
+                        </option>
+                    </select>
+                    <span aria-hidden="true">~</span>
+                    <label class="sr-only" for="report-end">끝 달</label>
+                    <select id="report-end" v-model="selectedEndYearMonth" @change="initRecordList">
+                        <option :value="null">끝 달</option>
+                        <option v-for="date in endMonthOptions" :key="date.value" :value="date.value">
+                            {{ date.text }}
+                        </option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="filter-line">
+                <span class="filter-label" id="report-kind-label">서식</span>
+                <!-- 여러 개를 함께 고를 수 있으므로 aria-pressed로 켜짐/꺼짐을 알린다 -->
+                <div class="report-type-filter chipbar" role="group" aria-labelledby="report-kind-label">
+                    <button
+                        v-for="option in reportOptions"
+                        :key="option.key"
+                        type="button"
+                        class="chip"
+                        :class="{ on: isSelected(option.key) }"
+                        :aria-pressed="isSelected(option.key) ? 'true' : 'false'"
+                        @click="toggleReportType(option.key)"
+                    >
+                        <i :class="['bi', isSelected(option.key) ? 'bi-check-circle-fill' : 'bi-circle']" aria-hidden="true"></i>
+                        {{ option.label }}
+                    </button>
+                </div>
             </div>
 
             <button
-                class="download-btn"
+                type="button"
+                class="btn btn-primary download-btn"
                 @click="downloadReportPDF"
                 :disabled="!canDownload"
             >
-                <i class="bi bi-cloud-arrow-down-fill"></i>
-                PDF 다운로드
+                <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
+                PDF로 받기
             </button>
         </div>
+
+        <p v-if="!canShowViewer" class="empty no-print" role="status">
+            <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+            기간과 서식을 고르면 여기에 미리 보기가 뜹니다.
+        </p>
         
         <div class="VIEWER" v-if="canShowViewer" id="report-content">
             <TotalPage
@@ -194,6 +218,11 @@ export default {
     },
 
     methods: {
+        /** 템플릿에서 this[`is...Selected`]를 문자열로 조립하던 자리를 한곳으로 모은다 */
+        isSelected(key) {
+            return this[`is${key.charAt(0).toUpperCase() + key.slice(1)}Selected`]
+        },
+
         async downloadReportPDF() {
             if (!this.canDownload) {
                 alert('보고서 기간 설정 및 항목 선택을 완료해주세요.');
@@ -300,234 +329,107 @@ export default {
 </script>
 
 <style scoped>
-/* 메인 탭 컴포넌트의 스타일만 남김 */
+.tab-root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+}
+
 .content-area {
     display: flex;
     flex-direction: column;
-    gap: 30px;
-    height: 100%;
-    max-height: 1050px;
+    gap: var(--spacing-4);
 }
 
+/* -------------------- 고르는 띠 -------------------- */
 .FILTER {
-    width: 100%;
-    height: auto; 
-    background-color: white; 
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    padding: var(--spacing-4) var(--spacing-5);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--shadow-sm);
+}
+
+.filter-line {
     display: flex;
     align-items: center;
-    padding: 15px 25px;
-    gap: 20px;
-    box-sizing: border-box;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
 }
 
-.filter-title {
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--strong-color, #333);
-    padding-right: 20px; 
-    border-right: 1px solid var(--medium-color, #ccc);
+/* 무엇을 고르는 자리인지 왼쪽에 이름을 세워 둔다 */
+.filter-label {
+    min-width: 40px;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
 }
 
 .date-range-filter {
     display: flex;
     align-items: center;
-    gap: 10px;
-    color: var(--strong-color, #333);
-    font-weight: 500;
-}
-
-.date-range-filter select {
-    padding: 8px 12px; 
-    border-radius: 6px; 
-    border: 1px solid var(--medium-color);
-    background-color: var(--none-color);
-    font-size: 15px;
-    color: var(--strong-color, #333);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    
-    &:focus {
-        border-color: var(--primary-color);
-        outline: none;
-    }
-}
-
-.VIEWER {
-    width: 100%;
-    flex-grow: 1;
-    background-color: var(--medium-color);
-    
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 30px 0; 
-    overflow-y: auto;
-}
-
-.download-btn {
-    margin-left: auto; 
-    padding: 10px 18px;
-    border: none;
-    border-radius: 6px;
-    background-color: var(--primary-color);
-    color: white;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-
-    display: flex;
-    gap: 8px;
-}
-
-.download-btn:hover:not(:disabled) {
-    background-color: var(--none-color);
-    color: var(--primary-color);
-}
-
-.download-btn:disabled {
-    background-color: var(--medium-color);
-    cursor: not-allowed;
-}
-
-.report-type-filter.button-group {
-    display: flex;
-    gap: 10px; /* 버튼 간 간격 */
-}
-
-.report-type-btn {
-    padding: 8px 15px;
-    border: 1px solid var(--medium-color);
-    border-radius: 6px;
-    background-color: var(--none-color);
-    color: var(--strong-color);
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.report-type-btn.selected {
-    border-color: var(--success-color);
-    background-color: var(--success-color);
-    color: white;
-
-}
-
-.report-type-btn:hover:not(.selected) {
-    background-color: var(--medium-color);
-}
-
-/* 다크모드 */
-[data-theme="dark"] .FILTER {
-    background-color: var(--bg-primary);
-    box-shadow: var(--shadow-md);
-}
-
-[data-theme="dark"] .filter-title {
-    color: var(--text-primary);
-    border-right-color: var(--border-color);
-}
-
-[data-theme="dark"] .date-range-filter {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .date-range-filter select {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .date-range-filter select:focus {
-    border-color: var(--primary-500);
-}
-
-[data-theme="dark"] .report-type-btn {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .report-type-btn:hover:not(.selected) {
-    background-color: var(--bg-tertiary);
-}
-
-[data-theme="dark"] .report-type-btn.selected {
-    background-color: var(--success-500);
-    border-color: var(--success-500);
-}
-
-[data-theme="dark"] .download-btn {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
-}
-
-[data-theme="dark"] .download-btn:hover:not(:disabled) {
-    background: var(--bg-primary);
-    color: var(--primary-400);
-}
-
-[data-theme="dark"] .download-btn:disabled {
-    background-color: var(--bg-tertiary);
+    gap: var(--spacing-2);
+    flex-wrap: wrap;
     color: var(--text-muted);
 }
 
-[data-theme="dark"] .VIEWER {
-    background-color: var(--bg-tertiary);
+.date-range-filter select {
+    min-height: 36px;
+    padding: 0 var(--spacing-3);
+    border: 1px solid var(--border-color-strong);
+    border-radius: var(--border-radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
 }
 
-/* 모바일 반응형 */
-@media (max-width: 1024px) {
-    .FILTER {
-        flex-wrap: wrap;
-    }
+.date-range-filter select:focus {
+    outline: none;
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px var(--primary-100);
+}
 
-    .download-btn {
-        margin-left: 0;
-    }
+[data-theme="dark"] .date-range-filter select:focus {
+    box-shadow: 0 0 0 3px var(--primary-950);
+}
+
+.download-btn {
+    align-self: flex-start;
+}
+
+/* -------------------- 미리 보기 -------------------- */
+.VIEWER {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-5);
+    padding: var(--spacing-5);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xl);
+    overflow: auto;
 }
 
 @media (max-width: 768px) {
     .FILTER {
+        padding: var(--spacing-4);
+    }
+
+    .filter-line {
+        align-items: flex-start;
         flex-direction: column;
-        align-items: stretch;
-        padding: 15px;
-        gap: 15px;
-    }
-
-    .filter-title {
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
-        padding-right: 0;
-        padding-bottom: 10px;
-        text-align: center;
-    }
-
-    .date-range-filter {
-        justify-content: center;
-    }
-
-    .report-type-filter.button-group {
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-
-    .report-type-btn {
-        flex: 1;
-        min-width: 120px;
-        text-align: center;
+        gap: var(--spacing-2);
     }
 
     .download-btn {
-        width: 100%;
-        justify-content: center;
+        align-self: stretch;
     }
 
     .VIEWER {
-        padding: 15px 0;
+        padding: var(--spacing-2);
     }
 }
 </style>

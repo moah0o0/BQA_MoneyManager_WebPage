@@ -1,81 +1,142 @@
-<template>  
+<template>
+<div class="ledger-wrap">
+  <!-- ========== 요약 ========== -->
   <div class="ledger-summary none-select">
-     <div class="summary-item count"> 
-        <span class="label">수입 및 지출 건수</span>
-        <span class="value">{{ totalCount.toLocaleString() }} 건</span>
-      </div>
-      <div class="summary-item expense">
-          <span class="label">지출합계</span>
-          <span class="value">{{ totalExpense.toLocaleString() }} 원</span>
-      </div>
-      <div class="summary-item income">
-          <span class="label">수입합계</span>
-          <span class="value">{{ totalIncome.toLocaleString() }} 원</span>
-      </div>
+    <div class="summary-item count">
+      <span class="label">건수</span>
+      <span class="value num">{{ totalCount.toLocaleString() }}<small>건</small></span>
+    </div>
+    <div class="summary-item income">
+      <span class="label">수입 합계</span>
+      <span class="value num">+{{ totalIncome.toLocaleString() }}<small>원</small></span>
+    </div>
+    <div class="summary-item expense">
+      <span class="label">지출 합계</span>
+      <span class="value num">-{{ totalExpense.toLocaleString() }}<small>원</small></span>
+    </div>
+    <div class="summary-item balance">
+      <span class="label">차액</span>
+      <span class="value num">{{ balance >= 0 ? '+' : '-' }}{{ Math.abs(balance).toLocaleString() }}<small>원</small></span>
+    </div>
   </div>
+
+  <!-- ========== 거르개 · 검색 ========== -->
   <div class="ledger-controls none-select">
-    <div class="validation-alert" v-if="hasValidationIssue">
-      <i class="bi bi-exclamation-triangle-fill"></i>
-      유효성 문제가 있는 장부가 {{ invalidLedgerCount }}건 있습니다. (항/목/세목 미입력, 지출증빙 미등록, 장부내용 미입력)
+    <div class="chipbar">
+      <!--
+        남은 일을 거르개로 만든다.
+        "N건 있습니다"라고 알리기만 하면 그 N건을 손으로 찾아야 한다.
+      -->
+      <button
+        type="button"
+        class="chip"
+        :class="{ on: onlyInvalid, 'has-work': invalidLedgerCount > 0 }"
+        :aria-pressed="onlyInvalid ? 'true' : 'false'"
+        @click="onlyInvalid = !onlyInvalid"
+      >
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>
+        덜 적은 것만
+        <span class="chip-count num">{{ invalidLedgerCount }}</span>
+      </button>
+
+      <button
+        v-for="type in FILTER_TYPES"
+        :key="type"
+        type="button"
+        class="chip"
+        :class="{ on: activeFilters[type].length > 0 }"
+        :aria-pressed="activeFilters[type].length > 0 ? 'true' : 'false'"
+        @click="openFilterModal(type)"
+      >
+        {{ TYPE_LABELS[type] }}
+        <span class="chip-count num">{{ activeFilters[type].length > 0 ? activeFilters[type].length : '전체' }}</span>
+      </button>
+
+      <button
+        v-if="hasAnyFilter"
+        type="button"
+        class="chip chip-reset"
+        @click="resetAllFilters"
+      >
+        <i class="bi bi-x-lg" aria-hidden="true"></i> 거르개 지우기
+      </button>
     </div>
 
     <div class="search-bar">
-      <input type="text" v-model="searchQuery" placeholder="장부내용 실시간 검색" class="search-input">
-      <i class="bi bi-search"></i>
+      <i class="bi bi-search" aria-hidden="true"></i>
+      <label class="sr-only" for="ledger-search">장부내용·거래적요 검색</label>
+      <input
+        id="ledger-search"
+        type="search"
+        v-model="searchQuery"
+        placeholder="장부내용 · 거래적요 검색"
+        class="search-input"
+      >
     </div>
   </div>
 
-  <div class="ledger-table-wrapper">
-  <table class="ledger">
+  <!-- 어떤 일이 일어났는지 소리로도 알린다 -->
+  <p class="sr-only" role="status" aria-live="polite">{{ statusMessage }}</p>
+  <p v-if="errorMessage" class="notice notice-danger table-error" role="alert">
+    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+    <span>{{ errorMessage }}</span>
+  </p>
+
+  <!-- ========== 표 ========== -->
+  <div
+    class="ledger-table-wrapper scroll-thin"
+    @keydown="onGridKeydown"
+  >
+  <table class="ledger" ref="tableRef">
+    <caption class="sr-only">
+      장부 목록. 방향키로 칸을 옮기고 Enter로 고칩니다.
+      Ctrl+D를 누르면 바로 윗줄의 항·목·세목을 가져옵니다.
+    </caption>
+    <colgroup>
+      <col style="width:38px"><col style="width:9%"><col style="width:8%"><col style="width:5%">
+      <col style="width:11%"><col style="width:15%"><col style="width:13%">
+      <col style="width:auto"><col style="width:9%"><col style="width:8%">
+    </colgroup>
     <thead>
     <tr class="ledger_pin">
-      <th style="width:2%"></th>
-      <th style="width:9%">거래일시</th>
-      <th style="width:6%">거래정보</th>
-      <th style="width:5%">관</th>
-      <th style="width:7%">
-        항
-        <button class="filter-toggle-btn none-select" @click="openFilterModal('Hang')">
-          <span :class="{'filter-tag': true, 'active': activeFilters.Hang.length > 0}">
-              {{ activeFilters.Hang.length > 0 ? `${activeFilters.Hang.length}건` : '전체' }}
-          </span>
-        </button>
+      <th scope="col" class="c-check">
+        <input
+          type="checkbox"
+          class="select"
+          :checked="allVisibleSelected"
+          :indeterminate.prop="someVisibleSelected && !allVisibleSelected"
+          :disabled="!canEdit || filteredLedgerList.length === 0"
+          aria-label="보이는 내역 모두 선택"
+          @change="toggleSelectAllVisible"
+        />
       </th>
-      <th style="width:18%">
-        목
-        <button class="filter-toggle-btn none-select" @click="openFilterModal('Mok')">
-          <span :class="{'filter-tag': true, 'active': activeFilters.Mok.length > 0}">
-              {{ activeFilters.Mok.length > 0 ? `${activeFilters.Mok.length}건` : '전체' }}
-          </span>
-        </button>
-      </th>
-      <th style="width:12%">
-        세목
-        <button class="filter-toggle-btn none-select" @click="openFilterModal('Saemok')">
-          <span :class="{'filter-tag': true, 'active': activeFilters.Saemok.length > 0}">
-              {{ activeFilters.Saemok.length > 0 ? `${activeFilters.Saemok.length}건` : '전체' }}
-          </span>
-        </button>
-      </th>
-      <th style="width:27%">장부내용</th>
-      <th style="width:5%">장부금액</th>
-      <th style="width:8%">지출증빙</th>
+      <th scope="col">거래일시</th>
+      <th scope="col">거래정보</th>
+      <th scope="col">관</th>
+      <th scope="col">항</th>
+      <th scope="col">목</th>
+      <th scope="col">세목</th>
+      <th scope="col">장부내용</th>
+      <th scope="col" class="r">장부금액</th>
+      <th scope="col">지출증빙</th>
     </tr>
     </thead>
     <tbody>
-    <template v-if="filteredLedgerList && ASSETS_LIST">
+    <template v-if="filteredLedgerList.length && ASSETS_LIST">
       <tr :class="{'ledger_row': true, 'selected': isLedgerSelected(LEDGER.expand.transaction.id), 'invalid-row': isInvalid(LEDGER)}"
-          v-for="LEDGER in filteredLedgerList"
+          v-for="(LEDGER, rowIndex) in filteredLedgerList"
           :key="LEDGER.id">
 
-        <td class="none-select">
+        <td class="c-check">
           <input class="select" type="checkbox"
+                 :data-cell="`${rowIndex}-0`"
                  @change="canEdit ? selectLedgerRow(LEDGER.expand.transaction.id) : null"
                  :checked="isLedgerSelected(LEDGER.expand.transaction.id)"
-                 :disabled="!canEdit"/>
+                 :disabled="!canEdit"
+                 :aria-label="`${datetimeFormatter(LEDGER.expand.transaction.datetime)} ${LEDGER.money.toLocaleString()}원 선택`"/>
         </td>
 
-        <td>
+        <td class="num c-date">
           {{ datetimeFormatter(LEDGER.expand.transaction.datetime) }}
         </td>
         <td>
@@ -85,59 +146,66 @@
         </td>
 
         <td>
-          <GwanLabel
-              :label="LEDGER.gwan"/>
+          <GwanLabel :label="LEDGER.gwan"/>
         </td>
 
-        <td>
+        <td :data-cell="`${rowIndex}-1`">
           <DropdownLabel
               type="Hang"
               :is-require="true"
+              :disabled="!canEdit"
               :assets-id="LEDGER.hang"
               :assets-list="ASSETS_LIST.Hang"
               :ledger-record="LEDGER"
-              :is-open="DROPDOWN_STATUS[`hang-${LEDGER.id}`]"
-              @updated="(value) => handleDropdownUpdate(LEDGER.id, 'hang', value)"
-              @toggle="canEdit ? openDropdown(`hang-${LEDGER.id}`) : null"/>
+              :is-open="openCell === `hang-${LEDGER.id}`"
+              @updated="(value) => handleDropdownUpdate(LEDGER, 'hang', value)"
+              @open="openDropdown(`hang-${LEDGER.id}`)"
+              @close="closeDropdown()"/>
         </td>
 
-        <td>
+        <td :data-cell="`${rowIndex}-2`">
           <DropdownLabel
               type="Mok"
               :is-require="true"
+              :disabled="!canEdit"
               :assets-id="LEDGER.mok"
               :assets-list="ASSETS_LIST.Mok"
               :ledger-record="LEDGER"
-              :is-open="DROPDOWN_STATUS[`mok-${LEDGER.id}`]"
-              @updated="(value) => handleDropdownUpdate(LEDGER.id, 'mok', value)"
-              @toggle="canEdit ? openDropdown(`mok-${LEDGER.id}`) : null"/>
+              :is-open="openCell === `mok-${LEDGER.id}`"
+              @updated="(value) => handleDropdownUpdate(LEDGER, 'mok', value)"
+              @open="openDropdown(`mok-${LEDGER.id}`)"
+              @close="closeDropdown()"/>
         </td>
 
-        <td>
+        <td :data-cell="`${rowIndex}-3`">
           <DropdownLabel
               type="Saemok"
               :is-require="true"
+              :disabled="!canEdit"
               :assets-id="LEDGER.saemok"
               :assets-list="ASSETS_LIST.Saemok"
               :ledger-record="LEDGER"
               :current-mok-id="LEDGER.mok"
-              :is-open="DROPDOWN_STATUS[`saemok-${LEDGER.id}`]"
-              @updated="(value) => handleDropdownUpdate(LEDGER.id, 'saemok', value)"
-              @toggle="canEdit ? openDropdown(`saemok-${LEDGER.id}`) : null"/>
+              :is-open="openCell === `saemok-${LEDGER.id}`"
+              @updated="(value) => handleDropdownUpdate(LEDGER, 'saemok', value)"
+              @open="openDropdown(`saemok-${LEDGER.id}`)"
+              @close="closeDropdown()"/>
         </td>
 
-        <td>
+        <td :data-cell="`${rowIndex}-4`">
           <ReasonLabel
               :ledger-record-id="LEDGER.id"
               :original-reason-text="LEDGER.reason"
-              :is-open="DROPDOWN_STATUS[`reason-${LEDGER.id}`]"
-              @open="canEdit ? openDropdown(`reason-${LEDGER.id}`) : null"
-              @close="closeReasonDropdown(`reason-${LEDGER.id}`)"
-              @updated="getLedger"/>
+              :disabled="!canEdit"
+              :is-open="openCell === `reason-${LEDGER.id}`"
+              @open="openDropdown(`reason-${LEDGER.id}`)"
+              @close="closeDropdown()"
+              @updated="(text) => applyLocal(LEDGER, { reason: text }, '장부내용을 저장했습니다')"
+              @error="(m) => showError(m)"/>
         </td>
 
-        <td>
-          {{ LEDGER.money.toLocaleString() }}
+        <td class="num r money" :class="LEDGER.gwan === '수입' ? 'is-income' : 'is-expense'">
+          {{ LEDGER.gwan === '수입' ? '+' : '-' }}{{ LEDGER.money.toLocaleString() }}
         </td>
 
         <td>
@@ -148,45 +216,103 @@
         </td>
       </tr>
     </template>
-    <tr v-else><td :colspan="10" style="text-align: center;">데이터가 없습니다.</td></tr>
+    <tr v-else>
+      <td :colspan="10">
+        <div class="empty-state">
+          <i :class="['bi', LEDGER_LIST.length ? 'bi-funnel' : 'bi-inbox']" aria-hidden="true"></i>
+          <p>{{ LEDGER_LIST.length ? '거르개에 걸리는 내역이 없습니다.' : '이 기간에 등록된 내역이 없습니다.' }}</p>
+          <button v-if="LEDGER_LIST.length && hasAnyFilter" type="button" class="btn btn-secondary btn-sm" @click="resetAllFilters">
+            거르개 지우기
+          </button>
+        </div>
+      </td>
+    </tr>
     </tbody>
   </table>
   </div>
 
-  <div class="modal-overlay" v-if="filterModal.isOpen" @click.self="closeFilterModal">
-    <div class="modal-content filter-modal">
-      <header class="modal-header">
-        <span class="title">{{ filterModalType }} 필터링</span>
-        <button class="close-btn" @click="closeFilterModal"><i class="bi bi-x-lg"></i></button>
-      </header>
-      <main class="modal-data-area">
-        <p class="current-filters">현재 선택된 필터: <strong>{{ pendingFilters[filterModal.type].length > 0 ? `${pendingFilters[filterModal.type].length}개 항목 선택` : '전체' }}</strong></p>
-        <div class="filter-options">
-          <div v-for="asset in getFilterOptionsByType(filterModal.type)" :key="asset.id" class="filter-item">
-            <label class="checkbox-label" :class="{'is-none-field': asset.is_none_field}">
-              <input type="checkbox" :value="asset.id" v-model="pendingFilters[filterModal.type]" class="custom-checkbox">
-              <span class="checkbox-custom"></span>
-              <span class="checkbox-text">
-                <span class="priority">{{ asset.priority_string }}.</span>
-                {{ asset.label }}
-              </span>
-            </label>
-          </div>
-        </div>
-      </main>
-      <footer class="modal-footer">
-        <button class="reset-button" @click="resetFilter(filterModal.type)">필터 초기화</button>
-        <button class="apply-button" @click="applyFilter">적용</button>
-      </footer>
-    </div>
-  </div>
+  <p v-if="canEdit && filteredLedgerList.length" class="hint grid-hint">
+    <i class="bi bi-keyboard" aria-hidden="true"></i>
+    방향키로 칸 이동 · <kbd>Enter</kbd> 고치기 · <kbd>Ctrl</kbd>+<kbd>D</kbd> 윗줄의 항·목·세목 가져오기
+  </p>
 
-  <div class="button-layer">
-    <button class="remove_button" v-if="SELECTED_TRANSACTION_LIST.length != 0 && canEdit" @click="removeSelectedLedger">
-      <small>{{ SELECTED_TRANSACTION_LIST.length }}건</small>
-      <strong>선택한 내역 삭제</strong>
+  <!-- ========== 항/목/세목 거르개 창 ========== -->
+  <AppModal
+    v-if="filterModal.isOpen"
+    :title="`${filterModalType} 거르개`"
+    :description="`보고 싶은 ${filterModalType}만 고르세요. 아무것도 고르지 않으면 전체를 봅니다.`"
+    size="sm"
+    @close="closeFilterModal"
+  >
+    <ul class="filter-options">
+      <li v-for="asset in getFilterOptionsByType(filterModal.type)" :key="asset.id" class="filter-item">
+        <label class="checkbox-label" :class="{'is-none-field': asset.is_none_field}">
+          <input type="checkbox" :value="asset.id" v-model="pendingFilters[filterModal.type]">
+          <span class="checkbox-text">
+            <span class="priority num">{{ asset.priority_string }}</span>
+            {{ asset.label }}
+          </span>
+        </label>
+      </li>
+      <li v-if="getFilterOptionsByType(filterModal.type).length === 0" class="empty">
+        고를 항목이 없습니다.
+      </li>
+    </ul>
+
+    <template #footer>
+      <span class="filter-count">{{ pendingFilters[filterModal.type].length > 0 ? `${pendingFilters[filterModal.type].length}개 선택` : '전체' }}</span>
+      <button type="button" class="btn btn-ghost" @click="resetFilter(filterModal.type)">초기화</button>
+      <button type="button" class="btn btn-primary" @click="applyFilter">적용</button>
+    </template>
+  </AppModal>
+
+  <!-- ========== 일괄 지정 창 ========== -->
+  <AppModal
+    v-if="bulkModal.isOpen"
+    :title="`선택한 ${SELECTED_TRANSACTION_LIST.length}건의 ${TYPE_LABELS[bulkModal.type]} 지정`"
+    :description="bulkHint"
+    size="sm"
+    @close="bulkModal.isOpen = false"
+  >
+    <ul v-if="bulkOptions.length" class="filter-options">
+      <li v-for="asset in bulkOptions" :key="asset.id" class="filter-item">
+        <button type="button" class="bulk-option" @click="applyBulk(asset.id)">
+          <span class="priority num">{{ asset.priority_string }}</span>
+          {{ asset.label }}
+        </button>
+      </li>
+    </ul>
+    <p v-else class="empty">{{ bulkBlockedReason }}</p>
+  </AppModal>
+
+  <!-- ========== 고른 것에 대한 띠 ========== -->
+  <!--
+    고른 줄에 할 수 있는 일을 한자리에 모은다.
+    예전에는 여러 줄을 골라도 '삭제'밖에 할 수 없어서,
+    같은 분류를 스무 번 따로 지정해야 했다.
+  -->
+  <div class="actionbar" v-if="SELECTED_TRANSACTION_LIST.length && canEdit" role="region" aria-label="선택한 내역 작업">
+    <span class="n num">{{ SELECTED_TRANSACTION_LIST.length }}</span>
+    <span class="actionbar-label">건 선택</span>
+
+    <span class="actionbar-sep" aria-hidden="true"></span>
+
+    <button
+      v-for="type in FILTER_TYPES"
+      :key="type"
+      type="button"
+      class="btn btn-secondary btn-sm"
+      @click="openBulkModal(type)"
+    >
+      {{ TYPE_LABELS[type] }} 지정
     </button>
+
+    <span class="actionbar-sep" aria-hidden="true"></span>
+
+    <button type="button" class="btn btn-ghost btn-sm" @click="SELECTED_TRANSACTION_LIST = []">선택 해제</button>
+    <button type="button" class="btn btn-danger btn-sm" @click="removeSelectedLedger">삭제</button>
   </div>
+</div>
 </template>
 
 <script>
@@ -195,24 +321,36 @@ import GwanLabel from './GwanLabel.vue';
 import DropdownLabel from './DropdownLabel.vue'
 import ReceiptLabel from './ReceiptLabel.vue';
 import ReasonLabel from './ReasonLabel.vue';
+import AppModal from '../layout/AppModal.vue';
 
 import PocketBase from 'pocketbase';
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__);
+
+const FILTER_TYPES = ['Hang', 'Mok', 'Saemok']
+const TYPE_LABELS = { Hang: '항', Mok: '목', Saemok: '세목' }
+const PAD = { Hang: 2, Mok: 3, Saemok: 4 }
+
+/** 방향키가 오갈 칸. 0은 고르기 칸, 1~3은 분류, 4는 장부내용 */
+const LAST_COL = 4
 
 export default {
   components: {
     TransactionLabel,
     GwanLabel,
     DropdownLabel,
-    ReasonLabel, 
+    ReasonLabel,
     ReceiptLabel,
+    AppModal,
   },
 
-  props: ['filterStartDate', 'filterEndDate', 'canEdit'], 
+  props: ['filterStartDate', 'filterEndDate', 'canEdit'],
   emits: ["refresh"],
 
   data(){
     return {
+      FILTER_TYPES,
+      TYPE_LABELS,
+
       LEDGER_LIST: [], // 원본 데이터
       ASSETS_LIST: {
         Hang: [],
@@ -220,120 +358,177 @@ export default {
         Saemok: []
       },
       BANK_SETTING_LIST: [],
-      DROPDOWN_STATUS: {},
+
+      /** 지금 열려 있는 칸은 하나뿐이다 — 객체에 모아 두면 닫힌 것까지 들고 다니게 된다 */
+      openCell: null,
       SELECTED_TRANSACTION_LIST: [],
 
-      // 2. 장부내용 검색 기능 추가
       searchQuery: '',
+      onlyInvalid: false,
 
-      // 3. 항/목/세목 필터링 기능 추가
-      activeFilters: { // 현재 적용된 필터 (ID 목록)
-        Hang: [],
-        Mok: [],
-        Saemok: [],
-      },
-      filterModal: { // 필터 모달 상태
-        isOpen: false,
-        type: null, // 'Hang', 'Mok', 'Saemok'
-      },
-      pendingFilters: { // 모달에서 임시로 선택된 필터
-        Hang: [],
-        Mok: [],
-        Saemok: [],
-      },
+      statusMessage: '',
+      errorMessage: '',
+
+      activeFilters: { Hang: [], Mok: [], Saemok: [] },
+      filterModal: { isOpen: false, type: null },
+      pendingFilters: { Hang: [], Mok: [], Saemok: [] },
+      bulkModal: { isOpen: false, type: null },
     }
   },
 
   async mounted(){
     await this.getAssets();
     await this.getLedger();
-    window.addEventListener('keydown', this.closeDropdown);
+    window.addEventListener('keydown', this.onWindowKeydown);
+    window.addEventListener('mousedown', this.onWindowMousedown);
   },
 
-
   beforeUnmount() {
-    window.removeEventListener('keydown', this.closeDropdown);
+    window.removeEventListener('keydown', this.onWindowKeydown);
+    window.removeEventListener('mousedown', this.onWindowMousedown);
+    clearTimeout(this.statusTimer);
+    clearTimeout(this.errorTimer);
   },
 
   watch: {
-    filterStartDate() {
-      this.getLedger();
-    },
-    filterEndDate() {
-      this.getLedger();
-    }
+    filterStartDate() { this.getLedger(); },
+    filterEndDate() { this.getLedger(); }
   },
+
   computed: {
     filterModalType(){
-      switch(this.filterModal.type){
-        case 'Hang': return '항'
-        case 'Mok': return '목'
-        case 'Saemok': return '세목'
-      }
-    },  
+      return TYPE_LABELS[this.filterModal.type] ?? ''
+    },
+
     totalCount() {
-        return this.filteredLedgerList.length;
+      return this.filteredLedgerList.length;
     },
-    
+
     totalExpense() {
-        return this.filteredLedgerList.reduce((sum, ledger) => {
-            // '지출'인 경우에만 합산
-            if (ledger.gwan === '지출') {
-                return sum + ledger.money;
-            }
-            return sum;
-        }, 0);
+      return this.filteredLedgerList.reduce((sum, ledger) =>
+        ledger.gwan === '지출' ? sum + ledger.money : sum, 0);
     },
-    
+
     totalIncome() {
-        return this.filteredLedgerList.reduce((sum, ledger) => {
-            // '수입'인 경우에만 합산
-            if (ledger.gwan === '수입') {
-                return sum + ledger.money;
-            }
-            return sum;
-        }, 0);
+      return this.filteredLedgerList.reduce((sum, ledger) =>
+        ledger.gwan === '수입' ? sum + ledger.money : sum, 0);
     },
 
+    balance() {
+      return this.totalIncome - this.totalExpense;
+    },
 
-    // 2. 장부내용 검색 & 3. 항/목/세목 필터링 로직을 통합하여 적용합니다.
+    hasAnyFilter() {
+      return this.onlyInvalid
+        || this.searchQuery.trim().length > 0
+        || FILTER_TYPES.some(t => this.activeFilters[t].length > 0)
+    },
+
     filteredLedgerList() {
       let list = this.LEDGER_LIST;
       const query = this.searchQuery.toLowerCase().trim();
 
-      // 1) 장부내용 검색 필터링
+      // 장부내용 + 은행 적요까지 함께 찾는다. 적으려는 근거가 적요에 있는 일이 많다
       if (query.length > 0) {
         list = list.filter(ledger =>
             (ledger.reason || '').toLowerCase().includes(query)
+            || (ledger.expand?.transaction?.description || '').toLowerCase().includes(query)
         );
       }
 
-      // 2) 항/목/세목 필터링
-      ['Hang', 'Mok', 'Saemok'].forEach(type => {
+      FILTER_TYPES.forEach(type => {
         const filterIds = this.activeFilters[type];
-        const fieldName = type.toLowerCase(); // 'Hang' -> 'hang'
+        const fieldName = type.toLowerCase();
         if (filterIds.length > 0) {
           list = list.filter(ledger => filterIds.includes(ledger[fieldName]));
         }
       });
 
+      if (this.onlyInvalid) list = list.filter(this.isInvalid);
+
       return list;
     },
+
     invalidLedgerCount() {
       return this.LEDGER_LIST.filter(this.isInvalid).length;
     },
-    // 유효성 문제가 하나라도 있는지 여부
+
     hasValidationIssue() {
       return this.invalidLedgerCount > 0;
-    }
+    },
+
+    /** 보이는 줄 가운데 고른 것 */
+    visibleSelectedCount() {
+      return this.filteredLedgerList
+        .filter(l => this.SELECTED_TRANSACTION_LIST.includes(l.expand.transaction.id)).length
+    },
+
+    allVisibleSelected() {
+      return this.filteredLedgerList.length > 0
+        && this.visibleSelectedCount === this.filteredLedgerList.length
+    },
+
+    someVisibleSelected() {
+      return this.visibleSelectedCount > 0
+    },
+
+    /** 고른 줄들이 이미 같은 항(목)을 쓰고 있는지 — 일괄 지정의 범위를 여기서 정한다 */
+    selectedLedgers() {
+      return this.LEDGER_LIST.filter(l =>
+        this.SELECTED_TRANSACTION_LIST.includes(l.expand.transaction.id))
+    },
+
+    commonHang() {
+      const ids = new Set(this.selectedLedgers.map(l => l.hang))
+      return ids.size === 1 ? [...ids][0] : null
+    },
+
+    commonMok() {
+      const ids = new Set(this.selectedLedgers.map(l => l.mok))
+      return ids.size === 1 ? [...ids][0] : null
+    },
+
+    bulkOptions() {
+      const type = this.bulkModal.type
+      if (!type) return []
+
+      let list = [...this.ASSETS_LIST[type]].sort((a, b) => a.priority - b.priority)
+
+      if (type === 'Mok') {
+        if (!this.commonHang) return []
+        list = list.filter(m => m.expand?.parent_hang?.id === this.commonHang)
+      }
+
+      if (type === 'Saemok') {
+        if (!this.commonMok) return []
+        const mok = this.ASSETS_LIST.Mok.find(m => m.id === this.commonMok)
+        if (mok?.is_able_specific_saemok) {
+          list = list.filter(s => mok.able_specific_saemok_list?.includes(s.id))
+        }
+      }
+
+      return list.map(a => ({ ...a, priority_string: this.zeroPad(a.priority, PAD[type]) }))
+    },
+
+    bulkBlockedReason() {
+      const type = this.bulkModal.type
+      if (type === 'Mok') return '고른 줄들의 항이 서로 다릅니다. 항을 먼저 같게 맞춰 주세요.'
+      if (type === 'Saemok') return '고른 줄들의 목이 서로 다릅니다. 목을 먼저 같게 맞춰 주세요.'
+      return '고를 항목이 없습니다.'
+    },
+
+    bulkHint() {
+      const type = this.bulkModal.type
+      if (type === 'Hang') return '항을 바꾸면 그 줄의 목·세목은 지워집니다.'
+      if (type === 'Mok') return '목을 바꾸면 그 줄의 세목은 지워집니다.'
+      return '고른 줄 전체에 한 번에 적용됩니다.'
+    },
   },
 
   methods: {
-    // ---- 유틸리티 함수 ----
     zeroPad(number, desiredLength){
-        return String(number).padStart(desiredLength, '0');
+      return String(number).padStart(desiredLength, '0');
     },
-    // ---- 끝 ----
 
     isInvalid(ledger) {
       const condition1 = !ledger.hang || !ledger.mok || !ledger.saemok;
@@ -343,13 +538,198 @@ export default {
 
       return condition1 || condition2 || condition3;
     },
+
+    // ---------- 알림 ----------
+    showStatus(message) {
+      this.statusMessage = message
+      clearTimeout(this.statusTimer)
+      this.statusTimer = setTimeout(() => (this.statusMessage = ''), 3000)
+    },
+
+    showError(message) {
+      this.errorMessage = message
+      clearTimeout(this.errorTimer)
+      this.errorTimer = setTimeout(() => (this.errorMessage = ''), 6000)
+    },
+
+    // ---------- 칸 열고 닫기 ----------
+    openDropdown(key) {
+      this.openCell = key
+    },
+
+    closeDropdown() {
+      this.openCell = null
+    },
+
+    onWindowKeydown(e) {
+      if (e.key === 'Escape') {
+        this.openCell = null
+      }
+    },
+
+    /** 표 밖을 누르면 열린 칸을 닫는다 (목록 안 누름은 목록이 막아 둔다) */
+    onWindowMousedown(e) {
+      if (!this.openCell) return
+      if (e.target.closest?.('.dropdown-container, .ReasonLabel')) return
+      this.openCell = null
+    },
+
+    // ---------- 키보드로 칸 옮기기 ----------
+    /**
+     * 표 안에서 방향키로 칸을 옮긴다.
+     * 장부는 같은 일을 수십 줄 되풀이하는 일이라,
+     * 마우스로 칸마다 겨누게 하면 그만큼이 그대로 시간이 된다.
+     */
+    onGridKeydown(e) {
+      if (!this.canEdit) return
+      if (e.isComposing || e.keyCode === 229) return
+
+      const cell = e.target.closest?.('[data-cell]')
+      if (!cell) return
+
+      const [row, col] = cell.dataset.cell.split('-').map(Number)
+      const editing = e.target.tagName === 'INPUT' && e.target.type !== 'checkbox'
+
+      // 윗줄의 분류를 그대로 가져온다 — 같은 성격의 거래가 잇달아 들어오는 일이 많다
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault()
+        this.copyFromAbove(row)
+        return
+      }
+
+      // 글을 고치는 중에는 좌우 방향키가 글자 사이를 오가야 한다
+      if (editing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault()
+          this.focusCell(row + 1, col)
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          this.focusCell(row - 1, col)
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          this.focusCell(row, col - 1)
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          this.focusCell(row, col + 1)
+          break
+      }
+    },
+
+    focusCell(row, col) {
+      if (row < 0 || row >= this.filteredLedgerList.length) return
+      if (col < 0 || col > LAST_COL) return
+
+      const table = this.$refs.tableRef
+      const holder = table?.querySelector(`[data-cell="${row}-${col}"]`)
+      if (!holder) return
+
+      // 고르기 칸은 그 자체가 입력이고, 나머지는 안에 단추가 들어 있다
+      const target = holder.matches('input') ? holder : holder.querySelector('button, input')
+      target?.focus()
+    },
+
+    /** 바로 윗줄의 항·목·세목을 지금 줄에 옮겨 적는다 */
+    async copyFromAbove(rowIndex) {
+      if (rowIndex <= 0) {
+        this.showStatus('맨 윗줄에서는 가져올 줄이 없습니다')
+        return
+      }
+
+      const above = this.filteredLedgerList[rowIndex - 1]
+      const target = this.filteredLedgerList[rowIndex]
+      if (!above || !target) return
+
+      if (!above.hang && !above.mok && !above.saemok) {
+        this.showStatus('윗줄에 적힌 항·목·세목이 없습니다')
+        return
+      }
+
+      const patch = { hang: above.hang, mok: above.mok, saemok: above.saemok }
+      await this.saveLedger(target, patch, '윗줄의 항·목·세목을 가져왔습니다')
+    },
+
+    // ---------- 저장 ----------
+    /**
+     * 화면을 먼저 바꾸고 서버에 보낸다.
+     * 예전처럼 저장할 때마다 목록 전체를 다시 받아 오면
+     * 한 칸 고칠 때마다 표가 통째로 다시 그려져 보던 자리를 잃는다.
+     */
+    applyLocal(ledger, patch, message) {
+      Object.assign(ledger, patch)
+      if (message) this.showStatus(message)
+    },
+
+    async saveLedger(ledger, patch, message) {
+      if (!this.canEdit) return
+
+      const before = {}
+      Object.keys(patch).forEach(k => { before[k] = ledger[k] })
+
+      this.applyLocal(ledger, patch, message)
+
+      try {
+        const updated = await pb.collection('Ledger').update(ledger.id, patch, { expand: 'receipt,transaction,mok' })
+        // 서버가 돌려준 expand(특히 목의 세목 제한)를 반영해야 다음 칸의 목록이 맞는다
+        if (updated?.expand) ledger.expand = { ...ledger.expand, ...updated.expand }
+      } catch (error) {
+        console.error("Failed to update ledger record:", error);
+        Object.assign(ledger, before)   // 되돌린다
+        this.showError('저장하지 못했습니다. 잠시 뒤 다시 시도해 주세요.')
+      }
+    },
+
+    async handleDropdownUpdate(ledger, field, value) {
+      if (!this.canEdit) return
+
+      const patch = { [field]: value }
+
+      // 위가 바뀌면 아래는 더 이상 맞지 않는다 — 함께 비운다
+      if (field === 'hang') { patch.mok = null; patch.saemok = null }
+      else if (field === 'mok') { patch.saemok = null }
+
+      await this.saveLedger(ledger, patch, `${TYPE_LABELS[field.charAt(0).toUpperCase() + field.slice(1)] ?? ''}을(를) 저장했습니다`)
+    },
+
+    // ---------- 일괄 지정 ----------
+    openBulkModal(type) {
+      this.bulkModal = { isOpen: true, type }
+    },
+
+    async applyBulk(assetId) {
+      const type = this.bulkModal.type
+      const field = type.toLowerCase()
+      const targets = [...this.selectedLedgers]
+
+      this.bulkModal.isOpen = false
+
+      const patch = { [field]: assetId }
+      if (field === 'hang') { patch.mok = null; patch.saemok = null }
+      else if (field === 'mok') { patch.saemok = null }
+
+      const before = targets.map(l => ({ hang: l.hang, mok: l.mok, saemok: l.saemok }))
+      targets.forEach(l => Object.assign(l, patch))
+
+      try {
+        await Promise.all(targets.map(l => pb.collection('Ledger').update(l.id, patch)))
+        this.showStatus(`${targets.length}건의 ${TYPE_LABELS[type]}을(를) 지정했습니다`)
+        // 목이 바뀌면 그에 딸린 세목 제한도 달라진다 — 여기서만 다시 받아 온다
+        if (field !== 'saemok') await this.getLedger()
+      } catch (error) {
+        console.error('Failed to bulk update:', error)
+        targets.forEach((l, i) => Object.assign(l, before[i]))
+        this.showError('일괄 지정에 실패했습니다.')
+      }
+    },
+
+    // ---------- 거르개 ----------
     openFilterModal(type) {
       this.filterModal.type = type;
-      // 모달을 열 때, 현재 적용된 필터를 임시 필터로 복사합니다.
-      this.pendingFilters.Hang = [...this.activeFilters.Hang];
-      this.pendingFilters.Mok = [...this.activeFilters.Mok];
-      this.pendingFilters.Saemok = [...this.activeFilters.Saemok];
-      
+      FILTER_TYPES.forEach(t => { this.pendingFilters[t] = [...this.activeFilters[t]] })
       this.filterModal.isOpen = true;
     },
 
@@ -359,121 +739,103 @@ export default {
     },
 
     applyFilter() {
-      const type = this.filterModal.type;
-      
-      // 필터를 적용할 때, 활성 필터(activeFilters)를 임시 필터(pendingFilters)의 복사본으로 재할당하여
-      // Vue의 반응성 시스템을 통해 filteredLedgerList computed 속성이 재계산되도록 합니다.
       this.activeFilters = {
-          ...this.activeFilters,
-          Hang: [...this.pendingFilters.Hang], // Hang 필터는 항상 반영
-          Mok: [...this.pendingFilters.Mok],   // Mok 필터 반영
-          Saemok: [...this.pendingFilters.Saemok] // Saemok 필터 반영
+          Hang: [...this.pendingFilters.Hang],
+          Mok: [...this.pendingFilters.Mok],
+          Saemok: [...this.pendingFilters.Saemok]
       };
-      
       this.closeFilterModal();
     },
 
     resetFilter(type) {
-      // 임시 필터(pendingFilters)를 초기화
       this.pendingFilters[type] = [];
-      
-      // 활성 필터(activeFilters)도 초기화하여 화면에 즉시 반영되도록 합니다.
-      this.activeFilters = {
-          ...this.activeFilters,
-          [type]: []
-      };
+      this.activeFilters = { ...this.activeFilters, [type]: [] };
+    },
+
+    resetAllFilters() {
+      this.activeFilters = { Hang: [], Mok: [], Saemok: [] }
+      this.pendingFilters = { Hang: [], Mok: [], Saemok: [] }
+      this.searchQuery = ''
+      this.onlyInvalid = false
     },
 
     // 필터 모달에 표시할 목록을 가져옵니다. (계층적/조건부 필터링 로직)
     getFilterOptionsByType(type) {
+      if (!type) return []
+
       let list = [...this.ASSETS_LIST[type]];
       const pendingHangIds = this.pendingFilters.Hang;
       const pendingMokIds = this.pendingFilters.Mok;
 
       // 1. Mok 필터링 규칙 적용 (Hang 필터에 종속)
       if (type === 'Mok' && pendingHangIds.length > 0) {
-        // parent_hang이 Hang 필터에서 선택된 경우에만 포함
         list = list.filter(mok => pendingHangIds.includes(mok.parent_hang));
       }
 
       // 2. Saemok 필터링 규칙 적용 (Mok 필터에 종속)
       else if (type === 'Saemok' && pendingMokIds.length > 0) {
         let allowedSaemokIds = new Set();
-        let shouldRestrict = false; // 하나라도 is_able_specific_saemok가 true인 Mok이 있는지 확인
+        let shouldRestrict = false;
 
-        // Mok 필터에서 선택된 모든 Mok 항목을 순회
         const selectedMoks = this.ASSETS_LIST.Mok.filter(mok => pendingMokIds.includes(mok.id));
 
         selectedMoks.forEach(mok => {
           if (mok.is_able_specific_saemok) {
             shouldRestrict = true;
-            // is_able_specific_saemok가 true인 경우, able_specific_saemok_list에 있는 Saemok만 허용
             if (mok.expand && mok.expand.able_specific_saemok_list) {
               mok.expand.able_specific_saemok_list.forEach(saemok => {
                 allowedSaemokIds.add(saemok.id);
               });
             }
-          } 
+          }
         });
 
-        // 하나라도 is_able_specific_saemok가 true인 Mok이 선택되었다면, 목록을 제한합니다.
         if (shouldRestrict) {
             list = list.filter(saemok => allowedSaemokIds.has(saemok.id));
         }
-        // shouldRestrict가 false이면 (선택된 모든 Mok이 is_able_specific_saemok == false이거나, Mok 선택이 없을 경우) 
-        // 전체 Saemok 목록이 표시됩니다.
       }
-      
-      // 3. 우선순위 정렬 및 형식화
-      // Assets 목록을 가져올 때 PocketBase에서 이미 priority로 정렬했으므로, 복사본을 그대로 사용합니다.
 
-      const desiredLength = { Hang: 2, Mok: 3, Saemok: 4 }[type];
-      list = list.map(asset => ({
+      const desiredLength = PAD[type];
+      return list.map(asset => ({
         ...asset,
-        priority_string: this.zeroPad(asset.priority, desiredLength), // zeroPad 함수 재활용
-        // Saemok에만 is_none_field가 있으므로 처리
+        priority_string: this.zeroPad(asset.priority, desiredLength),
         is_none_field: type === 'Saemok' ? (asset.is_none_field || false) : false
       }));
-
-      return list;
     },
 
+    // ---------- 고르기 ----------
     isLedgerSelected(id) {
       return this.SELECTED_TRANSACTION_LIST.includes(id);
     },
-    async handleDropdownUpdate(ledgerId, field, value) {
-      // 권한 체크: 수정 권한이 없으면 여기서 즉시 종료
-      if (!this.canEdit) {
-        console.warn("권한 없음: 수정 작업이 거부되었습니다.");
-        return; 
-      }
-      
-      const updateBody = {
-        [field]: value,
-      };
 
-      if (field === 'hang') {
-        updateBody.mok = null;
-        updateBody.saemok = null;
-      }
+    selectLedgerRow(id){
+      if (!this.canEdit) return;
 
-      else if (field === 'mok') {
-        updateBody.saemok = null;
-      }
-
-      try {
-        await pb.collection('Ledger').update(ledgerId, updateBody);
-        
-        await this.getLedger(); 
-
-      } catch (error) {
-        console.error("Failed to update ledger record:", error);
-        alert("데이터 업데이트에 실패했습니다.");
+      const index = this.SELECTED_TRANSACTION_LIST.indexOf(id);
+      if(index > -1){
+        this.SELECTED_TRANSACTION_LIST.splice(index, 1);
+      } else{
+        this.SELECTED_TRANSACTION_LIST.push(id)
       }
     },
+
+    toggleSelectAllVisible() {
+      if (!this.canEdit) return
+
+      if (this.allVisibleSelected) {
+        this.SELECTED_TRANSACTION_LIST = []
+        return
+      }
+      this.SELECTED_TRANSACTION_LIST = [
+        ...new Set(this.filteredLedgerList.map(l => l.expand.transaction.id))
+      ]
+    },
+
+    // ---------- 불러오기 ----------
     datetimeFormatter(str){
       return String(str).substring(0, 12).replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/,"$1-$2-$3 $4:$5")
     },
+
     async getLedger(){
       try {
         const ledger_list = await pb.collection("Ledger").getFullList({
@@ -486,8 +848,10 @@ export default {
       } catch (error) {
         console.error("Failed to fetch ledger data:", error);
         this.LEDGER_LIST = [];
+        this.showError('장부를 불러오지 못했습니다.')
       }
     },
+
     async getAssets(){
       try {
         const [hangs, moks, saemoks, bankSettings] = await Promise.all([
@@ -505,25 +869,16 @@ export default {
         this.BANK_SETTING_LIST = bankSettings;
       } catch (error) {
         console.error("Failed to fetch assets data:", error);
+        this.showError('계정과목을 불러오지 못했습니다.')
       }
     },
-    selectLedgerRow(id){
-      if (!this.canEdit) return;
-      
-      const index = this.SELECTED_TRANSACTION_LIST.indexOf(id);
-      if(index > -1){
-        this.SELECTED_TRANSACTION_LIST.splice(index, 1);
-      } else{
-        this.SELECTED_TRANSACTION_LIST.push(id)
-      }
-    },
-    async removeSelectedLedger(){
-      if (!this.canEdit) {
-        console.warn("권한 없음: 삭제 작업이 거부되었습니다.");
-        return;
-      }
 
+    async removeSelectedLedger(){
+      if (!this.canEdit) return;
       if (this.SELECTED_TRANSACTION_LIST.length === 0) return;
+
+      const count = this.SELECTED_TRANSACTION_LIST.length
+      if (!window.confirm(`선택한 ${count}건을 지웁니다. 되돌릴 수 없습니다. 계속할까요?`)) return
 
       // 같은 transaction.id를 가진 모든 ledger를 찾아서 삭제
       const ledgersToDelete = [];
@@ -532,695 +887,511 @@ export default {
         ledgersToDelete.push(...matchingLedgers);
       });
 
-      const promises = ledgersToDelete.map(ledger =>
-        pb.collection("Ledger").delete(ledger.id)
-      );
-
       try {
-        await Promise.all(promises);
+        await Promise.all(ledgersToDelete.map(ledger => pb.collection("Ledger").delete(ledger.id)));
         this.SELECTED_TRANSACTION_LIST = [];
         await this.getLedger();
+        this.showStatus(`${count}건을 지웠습니다`)
         this.$emit("refresh");
       } catch (error) {
         console.error("Failed to delete selected ledgers:", error);
-        alert("선택한 내역 삭제에 실패했습니다.");
+        this.showError('선택한 내역을 지우지 못했습니다.')
       }
     },
-
-    openDropdown(key) {
-      Object.keys(this.DROPDOWN_STATUS).forEach(k => {
-        this.DROPDOWN_STATUS[k] = false
-      })
-
-      this.DROPDOWN_STATUS[key] = true
-    },
-
-    closeDropdown(e) {
-      if (e.key === 'Escape') {
-          Object.keys(this.DROPDOWN_STATUS).forEach(k => {
-            this.DROPDOWN_STATUS[k] = false
-          })
-          this.filterModal.isOpen = false
-      }
-    },
-
-    closeReasonDropdown(key) {
-        this.DROPDOWN_STATUS[key] = false;
-    }
-
   },
 }
 </script>
 
 <style scoped>
-/* --- 기존 스타일은 유지하고, 필터 모달 관련 스타일만 집중적으로 수정 --- */
-
-/* ---- AssetLabel 디자인 반영 스타일 ---- */
-.filter-item .checkbox-label {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-}
-
-.filter-item .checkbox-label.is-none-field .checkbox-text {
-    color: var(--medium-color);
-}
-.filter-item .checkbox-label.is-none-field .priority {
-    color: var(--medium-color);
-}
-
-.filter-item .checkbox-text {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    color: var(--strong-color);
-}
-
-.filter-item .priority {
-    font-size: 0.8em;
-    font-weight: var(--font-weight-medium);
-    color: var(--medium-color);
-}
-
-/* --- 필터 모달 및 컨트롤 스타일 --- */
-.ledger-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-sm) 0;
-}
-
-.validation-alert {
-    background-color: var(--danger-color);
-    color: var(--none-color);
-    padding: var(--spacing-sm) var(--spacing-lg);
-    border-radius: var(--border-radius-sm);
-    font-weight: var(--font-weight-semibold);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-size: 0.9em;
-}
-
-.search-bar {
-    position: relative;
-    width: 300px;
-}
-
-.search-input {
-    width: 100%;
-    padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) 35px;
-    border: 1px solid var(--medium-color);
-    border-radius: var(--border-radius-sm);
-    font-size: 0.9em;
-    transition: border-color var(--transition-normal);
-}
-
-.search-input:focus {
-    border-color: var(--strong-color);
-    outline: none;
-}
-
-.search-bar .bi-search {
-    position: absolute;
-    left: var(--spacing-sm);
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--medium-color);
-    font-size: 0.9em;
-}
-
-tr.ledger_row.invalid-row {
-    background-color: #ffdddd;
-    border-left: 5px solid var(--danger-color);
-}
-
-tr.ledger_row.invalid-row.selected {
-    background-color: #ffcccc;
-}
-
-.filter-toggle-btn {
-    background: none;
-    border: none;
-    padding: 0;
-    margin-left: var(--spacing-xs);
-    cursor: pointer;
-}
-
-.filter-tag {
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: var(--border-radius-xl);
-    font-size: 0.7em;
-    font-weight: var(--font-weight-bold);
-    color: var(--medium-color);
-    background-color: var(--light-color);
-    transition: all var(--transition-normal);
-}
-
-.filter-tag.active {
-    color: var(--none-color);
-    background-color: var(--strong-color);
-}
-
-/* --- 필터 모달 디자인 개선 --- */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.6);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-}
-
-.filter-modal {
-    width: 450px;
-    background: var(--none-color);
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-xl);
+.ledger-wrap {
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    gap: var(--spacing-3);
 }
 
-.filter-modal .modal-header {
-    padding: var(--spacing-lg) var(--spacing-xl);
-    border-bottom: 1px solid var(--light-color);
-    background-color: var(--light-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 1.1em;
-    font-weight: var(--font-weight-bold);
-}
-
-.filter-modal .modal-header .close-btn {
-    background: none;
-    border: none;
-    font-size: 1.2em;
-    cursor: pointer;
-    color: var(--strong-color);
-    transition: color var(--transition-normal);
-}
-
-.filter-modal .modal-header .close-btn:hover {
-    color: var(--danger-color);
-}
-
-.filter-modal .modal-data-area {
-    padding: var(--spacing-lg) var(--spacing-xl);
-    display: flex;
-    flex-direction: column;
-}
-
-.filter-modal .current-filters {
-    font-size: 0.9em;
-    margin-bottom: var(--spacing-sm);
-    color: var(--strong-color);
-}
-
-.filter-options {
-    overflow-y: auto;
-    max-height: 350px;
-    padding-right: var(--spacing-lg);
-}
-
-.filter-item {
-    margin-bottom: var(--spacing-sm);
-    font-size: 0.9em;
-}
-
-/* 커스텀 체크박스 스타일 */
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-}
-
-.custom-checkbox {
-    display: none;
-}
-
-.checkbox-custom {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--medium-color);
-    border-radius: var(--border-radius-sm);
-    margin-right: var(--spacing-sm);
-    position: relative;
-    transition: all var(--transition-normal);
-    flex-shrink: 0;
-}
-
-.custom-checkbox:checked + .checkbox-custom {
-    background-color: var(--strong-color);
-    border-color: var(--strong-color);
-}
-
-.custom-checkbox:checked + .checkbox-custom::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 6px;
-    width: 4px;
-    height: 8px;
-    border: solid var(--none-color);
-    border-width: 0 2px 2px 0;
-    transform: rotate(45deg);
-}
-
-.checkbox-text {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.filter-modal .modal-footer {
-    padding: var(--spacing-lg) var(--spacing-xl);
-    border-top: 1px solid var(--light-color);
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--spacing-sm);
-}
-
-.apply-button, .reset-button {
-    padding: var(--spacing-sm) var(--spacing-lg);
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    font-weight: var(--font-weight-semibold);
-    transition: background-color var(--transition-normal), color var(--transition-normal);
-}
-
-.apply-button {
-    background-color: var(--strong-color);
-    color: var(--none-color);
-    border: none;
-}
-
-.apply-button:hover {
-    background-color: #2b77af;
-}
-
-.reset-button {
-    background-color: var(--none-color);
-    color: var(--strong-color);
-    border: 1px solid var(--strong-color);
-}
-
-.reset-button:hover {
-    background-color: var(--light-color);
-}
-
-/* --- 기존 테이블 및 버튼 스타일 --- */
-table.ledger {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-    font-size: 0.75em;
-}
-
-tr.ledger_pin {
-    height: 50px;
-    font-size: 1.1em;
-    background-color: var(--light-color);
-    border-bottom: 1px solid var(--medium-color);
-    border-top: 1px solid var(--medium-color);
-}
-
-tr.ledger_row {
-    height: 50px;
-    font-weight: var(--font-weight-medium);
-    border-bottom: 1px solid var(--medium-color);
-}
-
-tr.ledger_row.selected {
-    background-color: var(--light-color);
-}
-
-table.ledger th,
-table.ledger td {
-    padding-left: var(--spacing-lg);
-    padding-right: var(--spacing-lg);
-    text-align: left;
-    font-weight: var(--font-weight-medium);
-    position: relative;
-}
-
-input.select[type='checkbox'] {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    border: 1px solid var(--medium-color);
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    position: relative;
-    background-color: var(--none-color);
-    vertical-align: middle;
-    transition: all var(--transition-fast);
-}
-
-input.select[type='checkbox']:disabled {
-    cursor: default;
-    opacity: 0.5;
-}
-
-input.select[type='checkbox']:hover:not(:disabled) {
-    border-color: var(--strong-color);
-}
-
-input.select[type='checkbox']:checked:not(:disabled) {
-    background-color: var(--strong-color);
-    border-color: var(--strong-color);
-}
-
-input.select[type='checkbox']:checked::after {
-    content: "\F26E";
-    font-family: "bootstrap-icons";
-    color: var(--none-color);
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-
-span.require {
-    color: var(--danger-color);
-    margin-left: var(--spacing-sm);
-    font-size: 0.7em;
-}
-
-.button-layer {
-    position: fixed;
-    bottom: 50px;
-    left: 50%;
-    z-index: 1000;
-    display: flex;
-    justify-content: center;
-}
-
-.none-select {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-}
-
-button.remove_button {
-    display: flex;
-    gap: var(--spacing-sm);
-    width: fit-content;
-    padding: var(--spacing-sm) var(--spacing-xl);
-    border-radius: var(--border-radius-lg);
-    border: none;
-    cursor: pointer;
-    background-color: var(--danger-color);
-    color: var(--none-color);
-}
-
-button.remove_button > small {
-    font-size: 13px;
-    font-weight: var(--font-weight-semibold);
-    background-color: white;
-    color: var(--danger-color);
-    padding: var(--spacing-xs);
-    border-radius: var(--border-radius-lg);
-}
-
-button.remove_button > strong {
-    display: flex;
-    align-items: center;
-    font-weight: var(--font-weight-medium);
-    font-size: 16px;
-}
+/* ============================================
+   요약 — 숫자는 한 줄에 나란히, 자릿수가 맞게
+   ============================================ */
 
 .ledger-summary {
-    display: flex;
-    justify-content: flex-start;
-    gap: var(--spacing-xl);
-    padding: var(--spacing-sm) 0;
-    margin-bottom: var(--spacing-sm);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--spacing-3);
 }
 
 .summary-item {
     display: flex;
     flex-direction: column;
-    padding: var(--spacing-sm) var(--spacing-lg);
-    border-radius: var(--border-radius-sm);
-    min-width: 200px;
+    gap: 2px;
+    padding: var(--spacing-3) var(--spacing-4);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--border-color-strong);
+    border-radius: var(--border-radius-lg);
 }
 
 .summary-item .label {
-    font-size: 0.85em;
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-medium);
-    margin-bottom: var(--spacing-xs);
+    color: var(--text-secondary);
 }
 
 .summary-item .value {
-    font-size: 1.4em;
-    font-weight: var(--font-weight-extrabold);
-    margin-left: var(--spacing-sm);
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
 }
 
-.summary-item.count {
-    border-left: 5px solid var(--strong-color);
+.summary-item .value small {
+    margin-left: 2px;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
 }
 
-/* 지출 (Expense) 스타일 */
-.summary-item.expense {
-    border-left: 5px solid var(--danger-color);
-}
-.summary-item.expense .value,
-.summary-item.expense .label {
-    color: var(--danger-color);
-}
-
-/* 수입 (Income) 스타일 */
 .summary-item.income {
-    border-left: 5px solid var(--success-color);
+    border-left-color: var(--income-color);
 }
-.summary-item.income .value,
-.summary-item.income .label {
-    color: var(--success-color);
+
+.summary-item.income .value {
+    color: var(--income-color);
+}
+
+.summary-item.expense {
+    border-left-color: var(--expense-color);
+}
+
+.summary-item.expense .value {
+    color: var(--expense-color);
+}
+
+.summary-item.balance {
+    border-left-color: var(--primary-600);
 }
 
 /* ============================================
-   📱 모바일 반응형 스타일
+   거르개 줄
    ============================================ */
 
-/* 태블릿 (1024px 이하) */
+.ledger-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+}
+
+.chip-count {
+    padding: 0 var(--spacing-2);
+    border-radius: var(--border-radius-full);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.chip.on .chip-count {
+    background: var(--primary-600);
+    color: #fff;
+}
+
+/* 남은 일이 있을 때만 눈에 띄게 한다 */
+.chip.has-work:not(.on) {
+    background: var(--warning-50);
+    color: var(--warning-700);
+}
+
+.chip.has-work:not(.on) .chip-count {
+    background: var(--warning-600);
+    color: #fff;
+}
+
+[data-theme="dark"] .chip.has-work:not(.on) {
+    background: rgb(245 158 11 / 0.16);
+    color: var(--warning-200);
+}
+
+.chip-reset {
+    color: var(--text-muted);
+}
+
+.search-bar {
+    position: relative;
+    width: 280px;
+    max-width: 100%;
+}
+
+.search-input {
+    width: 100%;
+    min-height: 34px;
+    padding: 0 var(--spacing-3) 0 32px;
+    border: 1px solid var(--border-color-strong);
+    border-radius: var(--border-radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+[data-theme="dark"] .search-input:focus {
+    box-shadow: 0 0 0 3px var(--primary-950);
+}
+
+.search-bar .bi-search {
+    position: absolute;
+    left: var(--spacing-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    pointer-events: none;
+}
+
+.table-error {
+    margin: 0;
+}
+
+/* ============================================
+   표
+   ============================================ */
+
+.ledger-table-wrapper {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xl);
+    overflow: auto;
+    /* 머리줄이 붙어 있을 자리를 남긴다 */
+    max-height: calc(100vh - 320px);
+    min-height: 180px;
+}
+
+table.ledger {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: var(--text-sm);
+}
+
+/* 줄을 내려도 어느 칸인지 알 수 있게 머리줄을 붙여 둔다 */
+tr.ledger_pin th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 42px;
+    padding: 0 var(--spacing-3);
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color-strong);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    text-align: left;
+    white-space: nowrap;
+}
+
+tr.ledger_pin th.r {
+    text-align: right;
+}
+
+table.ledger td {
+    height: 44px;
+    padding: var(--spacing-1) var(--spacing-3);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+table.ledger tbody tr:last-child td {
+    border-bottom: none;
+}
+
+table.ledger td.r {
+    text-align: right;
+}
+
+.c-check {
+    padding-left: var(--spacing-3) !important;
+    padding-right: 0 !important;
+}
+
+.c-date {
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    white-space: nowrap;
+}
+
+.money {
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+}
+
+.money.is-income {
+    color: var(--income-color);
+}
+
+.money.is-expense {
+    color: var(--expense-color);
+}
+
+tr.ledger_row:hover {
+    background-color: var(--bg-secondary);
+}
+
+tr.ledger_row.selected {
+    background-color: var(--bg-active);
+}
+
+/*
+    아직 덜 적은 줄.
+    빨간 바탕으로 칠하면 '잘못 적었다'로 읽히고 글자도 읽기 어려워진다 —
+    왼쪽에 표시만 세워 두고 글자는 그대로 둔다.
+*/
+tr.ledger_row.invalid-row td:first-child {
+    box-shadow: inset 3px 0 0 var(--warning-500);
+}
+
+tr.ledger_row.invalid-row {
+    background-color: var(--warning-50);
+}
+
+tr.ledger_row.invalid-row:hover,
+tr.ledger_row.invalid-row.selected {
+    background-color: var(--warning-100);
+}
+
+[data-theme="dark"] tr.ledger_row.invalid-row {
+    background-color: rgb(245 158 11 / 0.08);
+}
+
+[data-theme="dark"] tr.ledger_row.invalid-row:hover,
+[data-theme="dark"] tr.ledger_row.invalid-row.selected {
+    background-color: rgb(245 158 11 / 0.16);
+}
+
+input.select[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+input.select[type='checkbox']:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.grid-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    flex-wrap: wrap;
+}
+
+.grid-hint kbd {
+    display: inline-block;
+    padding: 0 4px;
+    border: 1px solid var(--border-color-strong);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    font-family: inherit;
+    font-size: 0.95em;
+}
+
+/* ============================================
+   거르개 창 안
+   ============================================ */
+
+.filter-options {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    font-size: var(--text-sm);
+}
+
+.checkbox-label:hover {
+    background: var(--bg-hover);
+}
+
+.checkbox-label input {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.checkbox-label.is-none-field .checkbox-text {
+    color: var(--text-muted);
+}
+
+.checkbox-text {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    min-width: 0;
+}
+
+.priority {
+    flex-shrink: 0;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.filter-count {
+    margin-right: auto;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+}
+
+.bulk-option {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    width: 100%;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    text-align: left;
+}
+
+.bulk-option:hover {
+    background: var(--bg-active);
+    color: var(--primary-700);
+}
+
+[data-theme="dark"] .bulk-option:hover {
+    color: var(--primary-200);
+}
+
+/* ============================================
+   고른 것에 대한 띠
+   ============================================ */
+
+.actionbar {
+    position: fixed;
+    left: calc(var(--sidebar-width) / 2 + 50%);
+    bottom: var(--spacing-6);
+    z-index: var(--z-sticky);
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-4);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-full);
+    box-shadow: var(--shadow-lg);
+    animation: slideUp var(--duration-200) var(--ease-out);
+}
+
+.actionbar .n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: var(--border-radius-full);
+    background: var(--primary-600);
+    color: #fff;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-bold);
+}
+
+.actionbar-label {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.actionbar-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--border-color);
+}
+
+/* ============================================
+   반응형
+   ============================================ */
+
 @media (max-width: 1024px) {
     .ledger-summary {
-        flex-wrap: wrap;
-        gap: var(--spacing-md);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .summary-item {
-        min-width: 150px;
-        flex: 1;
-    }
-
-    .search-bar {
-        width: 250px;
+    .actionbar {
+        left: 50%;
     }
 }
 
-/* 모바일 (768px 이하) */
 @media (max-width: 768px) {
     .ledger-controls {
-        flex-direction: column;
         align-items: stretch;
-        gap: var(--spacing-md);
-    }
-
-    .validation-alert {
-        font-size: 0.85em;
-        padding: var(--spacing-sm);
     }
 
     .search-bar {
         width: 100%;
     }
 
+    .ledger-table-wrapper {
+        max-height: none;
+    }
+
+    table.ledger {
+        min-width: 960px;
+    }
+
+    .summary-item {
+        padding: var(--spacing-2) var(--spacing-3);
+    }
+
+    .summary-item .value {
+        font-size: var(--text-lg);
+    }
+
+    .grid-hint {
+        display: none;
+    }
+
+    .actionbar {
+        left: var(--spacing-3);
+        right: var(--spacing-3);
+        bottom: var(--spacing-3);
+        transform: none;
+        justify-content: center;
+        flex-wrap: wrap;
+        border-radius: var(--border-radius-xl);
+    }
+}
+
+@media (max-width: 480px) {
     .ledger-summary {
-        flex-direction: column;
-        gap: var(--spacing-sm);
+        grid-template-columns: 1fr;
     }
 
     .summary-item {
         flex-direction: row;
-        justify-content: space-between;
         align-items: center;
-        min-width: auto;
-        padding: var(--spacing-md);
+        justify-content: space-between;
     }
-
-    .summary-item .label {
-        margin-bottom: 0;
-    }
-
-    .summary-item .value {
-        font-size: 1.2em;
-        margin-left: 0;
-    }
-
-    /* 테이블 래퍼로 가로 스크롤 처리 */
-    .ledger-table-wrapper {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    table.ledger {
-        min-width: 900px;
-    }
-
-    tr.ledger_pin {
-        height: 45px;
-        font-size: 1em;
-    }
-
-    tr.ledger_row {
-        height: 45px;
-    }
-
-    table.ledger th,
-    table.ledger td {
-        padding-left: var(--spacing-sm);
-        padding-right: var(--spacing-sm);
-    }
-
-    /* 필터 모달 */
-    .filter-modal {
-        width: 95%;
-        max-width: 400px;
-        max-height: 90vh;
-    }
-
-    .filter-modal .modal-header,
-    .filter-modal .modal-data-area,
-    .filter-modal .modal-footer {
-        padding: var(--spacing-md);
-    }
-
-    .filter-options {
-        max-height: 250px;
-    }
-
-    /* 삭제 버튼 */
-    .button-layer {
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-    }
-
-    button.remove_button {
-        padding: var(--spacing-sm) var(--spacing-lg);
-    }
-
-    button.remove_button > strong {
-        font-size: 14px;
-    }
-}
-
-/* 작은 모바일 (480px 이하) */
-@media (max-width: 480px) {
-    .summary-item .value {
-        font-size: 1em;
-    }
-
-    .summary-item .label {
-        font-size: 0.8em;
-    }
-
-    table.ledger {
-        font-size: 0.7em;
-    }
-
-    tr.ledger_pin {
-        height: 40px;
-        font-size: 0.95em;
-    }
-
-    tr.ledger_row {
-        height: 40px;
-    }
-}
-
-/* ============================================
-   🌙 다크모드 스타일
-   ============================================ */
-
-[data-theme="dark"] tr.ledger_row.invalid-row {
-    background-color: rgba(239, 68, 68, 0.2);
-    border-left-color: var(--danger-500);
-}
-
-[data-theme="dark"] tr.ledger_row.invalid-row.selected {
-    background-color: rgba(239, 68, 68, 0.3);
-}
-
-[data-theme="dark"] .filter-modal {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .filter-modal .modal-header {
-    background-color: var(--bg-secondary);
-    border-bottom-color: var(--border-color);
-}
-
-[data-theme="dark"] .filter-modal .modal-footer {
-    border-top-color: var(--border-color);
-}
-
-[data-theme="dark"] .search-input {
-    background-color: var(--bg-primary);
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .search-input:focus {
-    border-color: var(--primary-500);
-}
-
-[data-theme="dark"] tr.ledger_pin {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-}
-
-[data-theme="dark"] tr.ledger_row {
-    border-bottom-color: var(--border-color);
-}
-
-[data-theme="dark"] tr.ledger_row.selected {
-    background-color: var(--bg-tertiary);
-}
-
-[data-theme="dark"] .checkbox-custom {
-    border-color: var(--border-color);
-    background-color: var(--bg-primary);
-}
-
-[data-theme="dark"] .apply-button {
-    background-color: var(--primary-600);
-}
-
-[data-theme="dark"] .apply-button:hover {
-    background-color: var(--primary-500);
-}
-
-[data-theme="dark"] .reset-button {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    border-color: var(--border-color);
-}
-
-[data-theme="dark"] .reset-button:hover {
-    background-color: var(--bg-tertiary);
 }
 </style>

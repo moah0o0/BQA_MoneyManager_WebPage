@@ -1,50 +1,41 @@
 <template>
-    <template v-if="label">
-        <span class="label">
-            <div class="plus none-select" v-if="label == '수입'">+</div> 
-            <div class="minus none-select" v-if="label == '지출'">-</div>
-            {{ label }}
-        </span>
-    </template>
-
+    <span v-if="label" class="gwan" :class="label === '수입' ? 'is-income' : 'is-expense'">
+        <!-- 색만으로 수입/지출을 가르지 않는다. 기호를 함께 둔다 -->
+        <span class="sign none-select" aria-hidden="true">{{ label === '수입' ? '+' : '−' }}</span>
+        {{ label }}
+    </span>
 </template>
 
 <style scoped>
-
-.plus {
-    font-weight: 600;
-    color: var(--danger-color);
-
+.gwan {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
 }
 
-.minus {
-    font-weight: 600;
-    color: var(--primary-color);
+.sign {
+    font-weight: var(--font-weight-bold);
+}
+
+/*
+    수입은 파랑, 지출은 빨강.
+    예전에는 수입에 --danger-color(빨강), 지출에 --primary-color(보라)가 붙어 있어
+    금액 칸의 색과 서로 어긋났다.
+*/
+.gwan.is-income {
+    color: var(--income-color);
+}
+
+.gwan.is-expense {
+    color: var(--expense-color);
 }
 
 .none-select {
   -webkit-user-select: none;
   -moz-user-select: none;
-  -ms-user-select: none;
   user-select: none;
 }
-
-/* -------------------- 다크모드 스타일 -------------------- */
-:deep([data-theme="dark"]) .label,
-[data-theme="dark"] .label {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .plus,
-[data-theme="dark"] .plus {
-    color: var(--income-color);
-}
-
-:deep([data-theme="dark"]) .minus,
-[data-theme="dark"] .minus {
-    color: var(--expense-color);
-}
-
 </style>
 
 <script>

@@ -1,13 +1,19 @@
 <template>
-<div class="main-content none-select">
+<div class="tab-root none-select">
     <div class="content-area">
     <template v-if="loginStatus === true">
 
-        <div class="FILTER">
-            <span class="filter-title">예산현황</span>
+        <div class="page-head no-print">
+            <div>
+                <h1 class="page-title">예산현황</h1>
+                <p class="page-desc">정한 예산을 얼마나 썼는지 기간별로 봅니다.</p>
+            </div>
+        </div>
 
-            <div class="period-selector" v-if="periodList.length > 0">
-                <select v-model="selectedPeriodId" @change="onPeriodChange">
+        <div class="FILTER">
+            <div class="filter-line" v-if="periodList.length > 0">
+                <label class="filter-label" for="monitor-period">회계기간</label>
+                <select id="monitor-period" v-model="selectedPeriodId" @change="onPeriodChange">
                     <option v-for="period in periodList" :key="period.id" :value="period.id">
                         {{ period.name }}
                     </option>
@@ -15,12 +21,13 @@
             </div>
 
             <button
-                class="download-btn"
+                type="button"
+                class="btn btn-primary download-btn"
                 @click="downloadReportPDF"
                 :disabled="!budgetReportReady"
             >
-                <i class="bi bi-cloud-arrow-down-fill"></i>
-                PDF 다운로드
+                <i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i>
+                PDF로 받기
             </button>
         </div>
 
@@ -35,16 +42,16 @@
             />
         </div>
 
-        <div class="empty-state" v-else-if="periodList.length === 0">
-            <i class="bi bi-calendar-x"></i>
-            <p>등록된 회계기간이 없습니다.</p>
-            <p class="sub">예산 탭에서 회계기간을 먼저 등록해주세요.</p>
-        </div>
+        <p class="empty" v-else-if="periodList.length === 0" role="status">
+            <i class="bi bi-calendar-x" aria-hidden="true"></i>
+            아직 정한 회계기간이 없습니다.
+            <span class="hint">예산 탭에서 기간을 먼저 정해 주세요.</span>
+        </p>
 
-        <div class="empty-state" v-else>
-            <i class="bi bi-hourglass-split"></i>
-            <p>데이터를 불러오는 중...</p>
-        </div>
+        <p class="empty" v-else role="status">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+            불러오는 중입니다…
+        </p>
     </template>
     </div>
 </div>
@@ -162,191 +169,89 @@ export default {
 </script>
 
 <style scoped>
+.tab-root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-4);
+}
+
 .content-area {
     display: flex;
     flex-direction: column;
-    gap: 30px;
-    height: 100%;
-    max-height: 1050px;
+    gap: var(--spacing-4);
 }
 
 .FILTER {
-    width: 100%;
-    height: auto;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-
     display: flex;
     align-items: center;
-    padding: 15px 25px;
-    gap: 20px;
-    box-sizing: border-box;
-}
-
-.filter-title {
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--strong-color, #333);
-    padding-right: 20px;
-    border-right: 1px solid var(--medium-color, #ccc);
-}
-
-.VIEWER {
-    width: 100%;
-    flex-grow: 1;
-    background-color: var(--medium-color);
-
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 30px 0;
-    overflow-y: auto;
-}
-
-.download-btn {
-    margin-left: auto;
-    padding: 10px 18px;
-    border: none;
-    border-radius: 6px;
-    background-color: var(--primary-color);
-    color: white;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-
-    display: flex;
-    gap: 8px;
-}
-
-.download-btn:hover:not(:disabled) {
-    background-color: var(--none-color);
-    color: var(--primary-color);
-}
-
-.download-btn:disabled {
-    background-color: var(--medium-color);
-    cursor: not-allowed;
-}
-
-.period-selector {
-    display: flex;
-    align-items: center;
-}
-
-.period-selector select {
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: 1px solid var(--medium-color);
-    background-color: var(--none-color);
-    font-size: 15px;
-    color: var(--strong-color);
-    cursor: pointer;
-}
-
-.period-selector select:focus {
-    border-color: var(--primary-color);
-    outline: none;
-}
-
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px 20px;
-    color: var(--medium-color);
-    text-align: center;
-}
-
-.empty-state i {
-    font-size: 48px;
-    margin-bottom: 20px;
-}
-
-.empty-state p {
-    margin: 5px 0;
-    font-size: 16px;
-}
-
-.empty-state p.sub {
-    font-size: 14px;
-    opacity: 0.8;
-}
-
-/* 다크모드 */
-[data-theme="dark"] .FILTER {
-    background-color: var(--bg-primary);
-    box-shadow: var(--shadow-md);
-}
-
-[data-theme="dark"] .filter-title {
-    color: var(--text-primary);
-    border-right-color: var(--border-color);
-}
-
-[data-theme="dark"] .period-selector select {
-    background-color: var(--bg-secondary);
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .period-selector select:focus {
-    border-color: var(--primary-500);
-}
-
-[data-theme="dark"] .download-btn {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
-}
-
-[data-theme="dark"] .download-btn:hover:not(:disabled) {
+    justify-content: space-between;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
+    padding: var(--spacing-4) var(--spacing-5);
     background: var(--bg-primary);
-    color: var(--primary-400);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--shadow-sm);
 }
 
-[data-theme="dark"] .download-btn:disabled {
-    background-color: var(--bg-tertiary);
-    color: var(--text-muted);
+.filter-line {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
 }
 
-[data-theme="dark"] .VIEWER {
-    background-color: var(--bg-tertiary);
-}
-
-[data-theme="dark"] .empty-state {
+.filter-label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
     color: var(--text-secondary);
 }
 
-/* 모바일 반응형 */
+.FILTER select {
+    min-height: 36px;
+    padding: 0 var(--spacing-3);
+    border: 1px solid var(--border-color-strong);
+    border-radius: var(--border-radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+}
+
+.FILTER select:focus {
+    outline: none;
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+[data-theme="dark"] .FILTER select:focus {
+    box-shadow: 0 0 0 3px var(--primary-950);
+}
+
+.VIEWER {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-5);
+    padding: var(--spacing-5);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xl);
+    overflow: auto;
+}
+
+.empty .hint {
+    display: block;
+}
+
 @media (max-width: 768px) {
     .FILTER {
-        flex-direction: column;
         align-items: stretch;
-        padding: 15px;
-        gap: 15px;
-    }
-
-    .filter-title {
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
-        padding-right: 0;
-        padding-bottom: 10px;
-        text-align: center;
-    }
-
-    .period-selector {
-        justify-content: center;
-    }
-
-    .download-btn {
-        width: 100%;
-        justify-content: center;
-        margin-left: 0;
+        flex-direction: column;
+        padding: var(--spacing-4);
     }
 
     .VIEWER {
-        padding: 15px 0;
+        padding: var(--spacing-2);
     }
 }
 </style>

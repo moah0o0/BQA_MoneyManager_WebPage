@@ -1,14 +1,22 @@
 <template>
+    <!--
+        고치는 자리는 눌리는 자리이기도 하다.
+        span에 click만 달면 마우스로만 닿는다 — tabindex와 Enter를 함께 둔다.
+    -->
     <component :is="editMode ? 'input' : 'span'"
                :class="{ 'editable-label': true, 'edit-mode': editMode }"
-               :value="currentValue"                                        
+               :value="currentValue"
+               :tabindex="editMode ? undefined : 0"
+               :role="editMode ? undefined : 'button'"
+               :aria-label="editMode ? '이름 고치기' : `${currentValue} — 눌러서 이름 고치기`"
                @click="enableEdit"
+               @keydown.enter.prevent="editMode ? saveEdit() : enableEdit()"
+               @keydown.f2.prevent="enableEdit"
                @blur="saveEdit"
-               @keyup.enter="saveEdit"
-              @keyup.esc="cancelEdit"
+               @keyup.esc="cancelEdit"
                @input="handleInput"
                ref="input">
-        
+
         <template v-if="!editMode">{{ currentValue }}</template>
     </component>
 </template>
