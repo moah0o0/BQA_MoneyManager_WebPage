@@ -10,7 +10,7 @@
       class="value-btn"
       :class="{ 'is-none-field': Assets.is_none_field, 'is-empty': !assetsId, 'is-open': isOpen }"
       :disabled="disabled"
-      role="combobox"
+      :tabindex="tabindex"
       :aria-expanded="isOpen ? 'true' : 'false'"
       aria-haspopup="listbox"
       :aria-label="`${typeLabel}: ${currentLabel}`"
@@ -31,7 +31,7 @@
       목록은 body에 띄운다.
       표 칸 안에 두면 칸 밖으로 잘리거나 아래 줄에 가려 보이지 않는다.
     -->
-    <Teleport to="body" v-if="isOpen">
+    <Teleport :to="panelHost" v-if="isOpen">
       <div
         ref="panelRef"
         class="dd-panel"
@@ -115,6 +115,10 @@ export default {
     isRequire: { type: Boolean, default: false },
     currentMokId: { type: String, default: null },
     disabled: { type: Boolean, default: false },
+    /** 표가 탭 스톱 하나만 갖도록 바깥에서 정해 준다 (-1이면 Tab이 지나친다) */
+    tabindex: { type: Number, default: 0 },
+    /** 글자를 쳐서 열었을 때의 첫 검색어 */
+    initialQuery: { type: String, default: '' },
   },
 
   emits: ['open', 'close', 'updated'],
@@ -131,6 +135,10 @@ export default {
 
   computed: {
     listId() { return `dd-list-${this.uid}` },
+    /** 본문 안쪽에 띄운다. 없으면(시험 등) body로 물러난다 */
+    panelHost() {
+      return document.getElementById('main-content') ? '#main-content' : 'body'
+    },
     typeLabel() { return LABELS[this.type] ?? this.type },
 
     currentLabel() {
@@ -231,22 +239,33 @@ export default {
 
     toggle() {
       if (this.disabled) return
-      this.$emit(this.isOpen ? 'close' : 'open')
+      if (this.isOpen) this.$emit('close', { move: null })
+      else this.$emit('open')
     },
 
-    /** 닫힌 채로 ↓ 또는 Enter를 누르면 열린다 — 표 안에서 손을 옮기지 않아도 되게 */
+    /**
+     * 닫힌 채로 Enter나 F2를 누르면 열린다 — 표 안에서 손을 옮기지 않아도 되게.
+     * Space는 일부러 뺐다. 표 어디서나 Space는 '이 줄 고르기'여야 한다.
+     * (방향키도 뺀다 — 표가 칸 옮기기에 쓴다)
+     */
     onAnchorKeydown(e) {
       if (this.isOpen || this.disabled) return
-      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+      if (e.key === 'Enter' || e.key === 'F2') {
         e.preventDefault()
         this.$emit('open')
       }
     },
 
     async onOpened() {
-      this.searchQuery = ''
-      this.cursor = this.searchOptions.findIndex(o => o.id === this.assetsId)
-      if (this.cursor < 0) this.cursor = this.searchOptions.length ? 0 : -1
+      // 글자를 쳐서 열었으면 그 글자부터 찾는다 — 엑셀에서 칸에 바로 치는 것과 같게
+      this.searchQuery = this.initialQuery || ''
+
+      if (this.searchQuery) {
+        this.cursor = this.searchOptions.length ? 0 : -1
+      } else {
+        this.cursor = this.searchOptions.findIndex(o => o.id === this.assetsId)
+        if (this.cursor < 0) this.cursor = this.searchOptions.length ? 0 : -1
+      }
 
       await this.$nextTick()
       this.position()
@@ -313,12 +332,14 @@ export default {
         case 'Escape':
           e.preventDefault()
           e.stopPropagation()
-          this.$emit('close')
+          this.$emit('close', { move: null })
           break
 
         case 'Tab':
-          // Tab은 고르지 않고 닫는다. 잘못 고른 채로 넘어가는 편이 더 나쁘다
-          this.$emit('close')
+          // Tab은 고르지 않고 옆 칸으로 넘어간다. 잘못 고른 채로 넘어가는 편이 더 나쁘다
+          e.preventDefault()
+          e.stopPropagation()
+          this.$emit('close', { move: e.shiftKey ? 'prev' : 'next' })
           break
       }
     },
@@ -331,7 +352,8 @@ export default {
 
     changeRecord(newAssetsValue) {
       this.$emit('updated', newAssetsValue.id ?? null)
-      this.$emit('close')
+      // 고르고 나면 다음 칸으로. 항 → 목 → 세목은 잇달아 적는 자리라 저절로 넘어가야 한다
+      this.$emit('close', { move: 'next' })
     }
   },
 }

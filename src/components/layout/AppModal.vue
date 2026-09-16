@@ -41,7 +41,13 @@
                     </button>
                 </div>
 
-                <div class="app-modal__body scroll-thin">
+                <div
+                    ref="bodyRef"
+                    class="app-modal__body scroll-thin"
+                    :tabindex="bodyNeedsFocus ? 0 : undefined"
+                    :role="bodyNeedsFocus ? 'group' : undefined"
+                    :aria-label="bodyNeedsFocus ? title : undefined"
+                >
                     <slot />
                 </div>
 
@@ -88,6 +94,11 @@ export default {
             // 창 안에서 글을 끌어 선택하다 밖에서 손을 떼면 창이 닫혀 버린다
             scrimPressed: false,
             returnFocusTo: null,
+            /*
+              글만 길게 들어 있어 눌릴 것이 하나도 없는 창은
+              마우스 휠로만 굴릴 수 있게 된다 — 그럴 때만 본문에 손이 닿게 한다.
+            */
+            bodyNeedsFocus: false,
         }
     },
 
@@ -102,6 +113,12 @@ export default {
         document.body.style.overflow = 'hidden'
 
         this.$nextTick(() => {
+            const body = this.$refs.bodyRef
+            if (body) {
+                const scrolls = body.scrollHeight > body.clientHeight + 1
+                this.bodyNeedsFocus = scrolls && body.querySelector(FOCUSABLE) === null
+            }
+
             const target = this.initialFocus
                 ? this.$refs.dialogRef?.querySelector(this.initialFocus)
                 : null

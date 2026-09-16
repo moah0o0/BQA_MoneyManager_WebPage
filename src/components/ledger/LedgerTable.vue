@@ -62,16 +62,24 @@
       </button>
     </div>
 
-    <div class="search-bar">
-      <i class="bi bi-search" aria-hidden="true"></i>
-      <label class="sr-only" for="ledger-search">장부내용·거래적요 검색</label>
-      <input
-        id="ledger-search"
-        type="search"
-        v-model="searchQuery"
-        placeholder="장부내용 · 거래적요 검색"
-        class="search-input"
-      >
+    <div class="controls-right">
+      <div class="search-bar">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <label class="sr-only" for="ledger-search">장부내용·거래적요 검색</label>
+        <input
+          id="ledger-search"
+          type="search"
+          v-model="searchQuery"
+          placeholder="장부내용 · 거래적요 검색"
+          class="search-input"
+        >
+      </div>
+
+      <button type="button" class="btn btn-secondary btn-sm keys-btn" aria-haspopup="dialog" @click="helpOpen = true">
+        <i class="bi bi-keyboard" aria-hidden="true"></i>
+        <span class="keys-btn-text">단축키</span>
+        <kbd aria-hidden="true">?</kbd>
+      </button>
     </div>
   </div>
 
@@ -82,15 +90,25 @@
     <span>{{ errorMessage }}</span>
   </p>
 
-  <!-- ========== 표 ========== -->
+  <!-- ========== 표 ==========
+       표 전체가 탭 스톱 하나다(roving tabindex).
+       칸마다 탭 스톱을 두면 백 줄짜리 장부를 지나가는 데만 Tab을 수백 번 눌러야 한다.
+  -->
   <div
     class="ledger-table-wrapper scroll-thin"
     @keydown="onGridKeydown"
+    @focusin="onGridFocusIn"
   >
-  <table class="ledger" ref="tableRef">
+  <table
+    class="ledger"
+    ref="tableRef"
+    role="grid"
+    :aria-rowcount="filteredLedgerList.length + 1"
+    :aria-colcount="COL_COUNT"
+  >
     <caption class="sr-only">
-      장부 목록. 방향키로 칸을 옮기고 Enter로 고칩니다.
-      Ctrl+D를 누르면 바로 윗줄의 항·목·세목을 가져옵니다.
+      장부 목록. 방향키로 칸을 옮기고, Enter를 누르거나 글자를 치면 바로 고칠 수 있습니다.
+      Ctrl+D는 윗줄의 항·목·세목을 가져옵니다. 물음표 키를 누르면 단축키를 모두 볼 수 있습니다.
     </caption>
     <colgroup>
       <col style="width:38px"><col style="width:9%"><col style="width:8%"><col style="width:5%">
@@ -98,8 +116,8 @@
       <col style="width:auto"><col style="width:9%"><col style="width:8%">
     </colgroup>
     <thead>
-    <tr class="ledger_pin">
-      <th scope="col" class="c-check">
+    <tr class="ledger_pin" role="row">
+      <th scope="col" role="columnheader" class="c-check">
         <input
           type="checkbox"
           class="select"
@@ -110,26 +128,28 @@
           @change="toggleSelectAllVisible"
         />
       </th>
-      <th scope="col">거래일시</th>
-      <th scope="col">거래정보</th>
-      <th scope="col">관</th>
-      <th scope="col">항</th>
-      <th scope="col">목</th>
-      <th scope="col">세목</th>
-      <th scope="col">장부내용</th>
-      <th scope="col" class="r">장부금액</th>
-      <th scope="col">지출증빙</th>
+      <th scope="col" role="columnheader">거래일시</th>
+      <th scope="col" role="columnheader">거래정보</th>
+      <th scope="col" role="columnheader">관</th>
+      <th scope="col" role="columnheader">항</th>
+      <th scope="col" role="columnheader">목</th>
+      <th scope="col" role="columnheader">세목</th>
+      <th scope="col" role="columnheader">장부내용</th>
+      <th scope="col" role="columnheader" class="r">장부금액</th>
+      <th scope="col" role="columnheader">지출증빙</th>
     </tr>
     </thead>
     <tbody>
     <template v-if="filteredLedgerList.length && ASSETS_LIST">
-      <tr :class="{'ledger_row': true, 'selected': isLedgerSelected(LEDGER.expand.transaction.id), 'invalid-row': isInvalid(LEDGER)}"
+      <tr :class="{'ledger_row': true, 'selected': isLedgerSelected(LEDGER.expand.transaction.id), 'invalid-row': isInvalid(LEDGER), 'is-cursor-row': focus.row === rowIndex}"
           v-for="(LEDGER, rowIndex) in filteredLedgerList"
-          :key="LEDGER.id">
+          :key="LEDGER.id"
+          role="row"
+          :aria-rowindex="rowIndex + 2">
 
-        <td class="c-check">
+        <td class="c-check" role="gridcell" :data-cell="`${rowIndex}-0`">
           <input class="select" type="checkbox"
-                 :data-cell="`${rowIndex}-0`"
+                 :tabindex="tabIndexOf(rowIndex, 0)"
                  @change="canEdit ? selectLedgerRow(LEDGER.expand.transaction.id) : null"
                  :checked="isLedgerSelected(LEDGER.expand.transaction.id)"
                  :disabled="!canEdit"
@@ -139,17 +159,19 @@
         <td class="num c-date">
           {{ datetimeFormatter(LEDGER.expand.transaction.datetime) }}
         </td>
-        <td>
+
+        <td role="gridcell" :data-cell="`${rowIndex}-1`">
           <TransactionLabel
               :transaction="LEDGER.expand.transaction"
-              :bank-setting-list="BANK_SETTING_LIST"/>
+              :bank-setting-list="BANK_SETTING_LIST"
+              :tabindex="tabIndexOf(rowIndex, 1)"/>
         </td>
 
         <td>
           <GwanLabel :label="LEDGER.gwan"/>
         </td>
 
-        <td :data-cell="`${rowIndex}-1`">
+        <td role="gridcell" :data-cell="`${rowIndex}-2`">
           <DropdownLabel
               type="Hang"
               :is-require="true"
@@ -158,12 +180,14 @@
               :assets-list="ASSETS_LIST.Hang"
               :ledger-record="LEDGER"
               :is-open="openCell === `hang-${LEDGER.id}`"
+              :initial-query="pendingInput"
+              :tabindex="tabIndexOf(rowIndex, 2)"
               @updated="(value) => handleDropdownUpdate(LEDGER, 'hang', value)"
-              @open="openDropdown(`hang-${LEDGER.id}`)"
-              @close="closeDropdown()"/>
+              @open="openEditor(rowIndex, 2)"
+              @close="closeEditor"/>
         </td>
 
-        <td :data-cell="`${rowIndex}-2`">
+        <td role="gridcell" :data-cell="`${rowIndex}-3`">
           <DropdownLabel
               type="Mok"
               :is-require="true"
@@ -172,12 +196,14 @@
               :assets-list="ASSETS_LIST.Mok"
               :ledger-record="LEDGER"
               :is-open="openCell === `mok-${LEDGER.id}`"
+              :initial-query="pendingInput"
+              :tabindex="tabIndexOf(rowIndex, 3)"
               @updated="(value) => handleDropdownUpdate(LEDGER, 'mok', value)"
-              @open="openDropdown(`mok-${LEDGER.id}`)"
-              @close="closeDropdown()"/>
+              @open="openEditor(rowIndex, 3)"
+              @close="closeEditor"/>
         </td>
 
-        <td :data-cell="`${rowIndex}-3`">
+        <td role="gridcell" :data-cell="`${rowIndex}-4`">
           <DropdownLabel
               type="Saemok"
               :is-require="true"
@@ -187,19 +213,24 @@
               :ledger-record="LEDGER"
               :current-mok-id="LEDGER.mok"
               :is-open="openCell === `saemok-${LEDGER.id}`"
+              :initial-query="pendingInput"
+              :tabindex="tabIndexOf(rowIndex, 4)"
               @updated="(value) => handleDropdownUpdate(LEDGER, 'saemok', value)"
-              @open="openDropdown(`saemok-${LEDGER.id}`)"
-              @close="closeDropdown()"/>
+              @open="openEditor(rowIndex, 4)"
+              @close="closeEditor"/>
         </td>
 
-        <td :data-cell="`${rowIndex}-4`">
+        <td role="gridcell" :data-cell="`${rowIndex}-5`">
           <ReasonLabel
               :ledger-record-id="LEDGER.id"
               :original-reason-text="LEDGER.reason"
+              :placeholder="LEDGER.expand.transaction.description"
               :disabled="!canEdit"
               :is-open="openCell === `reason-${LEDGER.id}`"
-              @open="openDropdown(`reason-${LEDGER.id}`)"
-              @close="closeDropdown()"
+              :initial-text="pendingInput || null"
+              :tabindex="tabIndexOf(rowIndex, 5)"
+              @open="openEditor(rowIndex, 5)"
+              @close="closeEditor"
               @updated="(text) => applyLocal(LEDGER, { reason: text }, '장부내용을 저장했습니다')"
               @error="(m) => showError(m)"/>
         </td>
@@ -208,10 +239,11 @@
           {{ LEDGER.gwan === '수입' ? '+' : '-' }}{{ LEDGER.money.toLocaleString() }}
         </td>
 
-        <td>
+        <td role="gridcell" :data-cell="`${rowIndex}-6`">
           <ReceiptLabel
               :ledger-record="LEDGER"
               :canEdit="canEdit"
+              :tabindex="tabIndexOf(rowIndex, 6)"
               @update-complete="getLedger"/>
         </td>
       </tr>
@@ -233,7 +265,8 @@
 
   <p v-if="canEdit && filteredLedgerList.length" class="hint grid-hint">
     <i class="bi bi-keyboard" aria-hidden="true"></i>
-    방향키로 칸 이동 · <kbd>Enter</kbd> 고치기 · <kbd>Ctrl</kbd>+<kbd>D</kbd> 윗줄의 항·목·세목 가져오기
+    <kbd>Tab</kbd>으로 표에 들어와 방향키로 이동 · 글자를 치면 그 칸이 바로 열립니다 ·
+    <kbd>Ctrl</kbd>+<kbd>D</kbd> 윗줄 가져오기 · <kbd>?</kbd> 단축키 전체
   </p>
 
   <!-- ========== 항/목/세목 거르개 창 ========== -->
@@ -285,6 +318,32 @@
     <p v-else class="empty">{{ bulkBlockedReason }}</p>
   </AppModal>
 
+  <!-- ========== 단축키 도움말 ========== -->
+  <AppModal
+    v-if="helpOpen"
+    title="장부 단축키"
+    icon="bi-keyboard"
+    description="장부는 마우스 없이 키보드만으로 다 적을 수 있습니다."
+    size="md"
+    @close="helpOpen = false"
+  >
+    <section v-for="group in SHORTCUTS" :key="group.title" class="keys-group">
+      <h3>{{ group.title }}</h3>
+      <dl>
+        <div v-for="item in group.items" :key="item.what" class="keys-row">
+          <dt>
+            <kbd v-for="k in item.keys" :key="k">{{ k }}</kbd>
+          </dt>
+          <dd>{{ item.what }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <template #footer>
+      <button type="button" class="btn btn-primary" @click="helpOpen = false">닫기</button>
+    </template>
+  </AppModal>
+
   <!-- ========== 고른 것에 대한 띠 ========== -->
   <!--
     고른 줄에 할 수 있는 일을 한자리에 모은다.
@@ -309,8 +368,18 @@
 
     <span class="actionbar-sep" aria-hidden="true"></span>
 
+    <!-- 증빙은 줄마다 창을 열지 않고 여기서 한 번에 바꾼다 -->
+    <button type="button" class="btn btn-secondary btn-sm" :disabled="bulkBusy" @click="applyBulkReceipt(true)">
+      <i class="bi bi-slash-circle" aria-hidden="true"></i> 증빙 불요
+    </button>
+    <button type="button" class="btn btn-secondary btn-sm" :disabled="bulkBusy" @click="applyBulkReceipt(false)">
+      <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> 증빙 미처리
+    </button>
+
+    <span class="actionbar-sep" aria-hidden="true"></span>
+
     <button type="button" class="btn btn-ghost btn-sm" @click="SELECTED_TRANSACTION_LIST = []">선택 해제</button>
-    <button type="button" class="btn btn-danger btn-sm" @click="removeSelectedLedger">삭제</button>
+    <button type="button" class="btn btn-danger btn-sm" :disabled="bulkBusy" @click="removeSelectedLedger">삭제</button>
   </div>
 </div>
 </template>
@@ -330,8 +399,66 @@ const FILTER_TYPES = ['Hang', 'Mok', 'Saemok']
 const TYPE_LABELS = { Hang: '항', Mok: '목', Saemok: '세목' }
 const PAD = { Hang: 2, Mok: 3, Saemok: 4 }
 
-/** 방향키가 오갈 칸. 0은 고르기 칸, 1~3은 분류, 4는 장부내용 */
-const LAST_COL = 4
+/**
+ * 방향키가 오갈 칸.
+ * 0 고르기 · 1 거래정보 · 2 항 · 3 목 · 4 세목 · 5 장부내용 · 6 지출증빙
+ * 눌리는 것이 들어 있는 칸은 하나도 빠짐없이 여기에 있어야 한다 —
+ * 하나라도 빠지면 그 칸에 가려고 마우스를 잡아야 한다.
+ */
+const NAV_COLS = 7
+const LAST_COL = NAV_COLS - 1
+
+/** 글자를 치면 바로 고쳐지는 칸 (분류 셋 + 장부내용) */
+const TYPE_TO_EDIT = [2, 3, 4, 5]
+
+/** 칸 번호 → 그 칸의 편집기를 여는 열쇠 앞머리 */
+const CELL_KEY = { 2: 'hang', 3: 'mok', 4: 'saemok', 5: 'reason' }
+
+/** 한 번에 건너뛸 줄 수 (PageUp / PageDown) */
+const PAGE_ROWS = 10
+
+const SHORTCUTS = [
+  {
+    title: '표 안에서 옮기기',
+    items: [
+      { keys: ['Tab'], what: '표에 들어가기 / 표에서 나가기 (표 전체가 탭 자리 하나입니다)' },
+      { keys: ['←', '→', '↑', '↓'], what: '옆 칸 · 윗줄 · 아랫줄로' },
+      { keys: ['Home'], what: '그 줄의 첫 칸' },
+      { keys: ['End'], what: '그 줄의 마지막 칸' },
+      { keys: ['Ctrl', 'Home'], what: '첫 줄로' },
+      { keys: ['Ctrl', 'End'], what: '마지막 줄로' },
+      { keys: ['PgUp'], what: '열 줄 위로' },
+      { keys: ['PgDn'], what: '열 줄 아래로' },
+    ],
+  },
+  {
+    title: '적기',
+    items: [
+      { keys: ['숫자'], what: '치는 순간 그 칸이 열리며 그 번호로 찾습니다 (계정과목 번호)' },
+      { keys: ['한글'], what: '치는 순간 그 칸이 열립니다' },
+      { keys: ['Enter'], what: '칸 열기 / 적은 것을 저장' },
+      { keys: ['Esc'], what: '고치던 것을 되돌리고 닫기' },
+      { keys: ['Tab'], what: '(고치는 중) 저장하고 옆 칸으로' },
+      { keys: ['Ctrl', 'D'], what: '윗줄의 항 · 목 · 세목을 그대로 가져오기' },
+    ],
+  },
+  {
+    title: '고르기 · 한꺼번에 하기',
+    items: [
+      { keys: ['Space'], what: '이 줄 고르기 / 고른 것 풀기' },
+      { keys: ['Shift', '↑ ↓'], what: '위아래로 이어서 고르기' },
+      { keys: ['Ctrl', 'A'], what: '보이는 줄 모두 고르기' },
+      { keys: ['Esc'], what: '고른 것 모두 풀기' },
+    ],
+  },
+  {
+    title: '그 밖에',
+    items: [
+      { keys: ['?'], what: '이 도움말' },
+      { keys: ['/'], what: '검색칸으로' },
+    ],
+  },
+]
 
 export default {
   components: {
@@ -350,6 +477,23 @@ export default {
     return {
       FILTER_TYPES,
       TYPE_LABELS,
+      SHORTCUTS,
+      COL_COUNT: 10,
+
+      /**
+       * 표 안에서 지금 손이 가 있는 칸.
+       * 이 한 칸만 탭 자리를 갖는다(roving tabindex) — 표는 통틀어 탭 자리 하나다.
+       */
+      focus: { row: 0, col: 2 },
+      /** 글자를 쳐서 칸을 열었을 때 이미 친 글자 */
+      pendingInput: '',
+      /** 표에 한 번이라도 손이 닿았는지. 처음 들어올 때 '할 일'로 데려가려고 본다 */
+      touched: false,
+      /** Shift+방향키로 이어 고를 때의 기준 줄 */
+      selectAnchor: null,
+
+      helpOpen: false,
+      bulkBusy: false,
 
       LEDGER_LIST: [], // 원본 데이터
       ASSETS_LIST: {
@@ -392,7 +536,32 @@ export default {
 
   watch: {
     filterStartDate() { this.getLedger(); },
-    filterEndDate() { this.getLedger(); }
+    filterEndDate() { this.getLedger(); },
+
+    /*
+      보이는 줄이 바뀌면(거르개·검색·새로 불러오기) 손이 가 있던 자리가 없어질 수 있다.
+      그대로 두면 Tab을 눌렀을 때 아무 데도 가지 않는다.
+    */
+    filteredLedgerList: {
+      immediate: true,
+      handler(list) {
+        if (list.length === 0) {
+          this.focus = { row: 0, col: 2 }
+          return
+        }
+
+        // 아직 표에 손을 댄 적이 없으면 '할 일'로 데려간다 —
+        // 표에 들어오자마자 적어야 할 첫 칸에 서 있게 된다
+        if (!this.touched) {
+          this.focus = this.firstTodoCell(list)
+          return
+        }
+
+        if (this.focus.row >= list.length) {
+          this.focus = { row: list.length - 1, col: this.focus.col }
+        }
+      }
+    }
   },
 
   computed: {
@@ -552,19 +721,54 @@ export default {
       this.errorTimer = setTimeout(() => (this.errorMessage = ''), 6000)
     },
 
+    // ---------- 탭 자리 (roving tabindex) ----------
+    /**
+     * 손이 가 있는 칸 하나만 탭 자리를 갖는다.
+     * 칸마다 0으로 두면 백 줄짜리 장부를 지나가는 데만 Tab을 수백 번 눌러야 한다.
+     */
+    tabIndexOf(row, col) {
+      return (this.focus.row === row && this.focus.col === col) ? 0 : -1
+    },
+
+    /** 마우스로 눌렀을 때도 손이 간 자리를 따라간다 — 안 그러면 다음 Tab이 엉뚱한 데로 간다 */
+    onGridFocusIn(e) {
+      const cell = e.target.closest?.('[data-cell]')
+      if (!cell) return
+      const [row, col] = cell.dataset.cell.split('-').map(Number)
+      this.focus = { row, col }
+      this.touched = true
+    },
+
     // ---------- 칸 열고 닫기 ----------
-    openDropdown(key) {
-      this.openCell = key
+    /** 칸을 연다. query가 있으면 이미 친 글자를 이어받아 연다 */
+    openEditor(row, col, query = '') {
+      const ledger = this.filteredLedgerList[row]
+      const key = CELL_KEY[col]
+      if (!ledger || !key) return
+
+      this.focus = { row, col }
+      this.pendingInput = query
+      this.openCell = `${key}-${ledger.id}`
     },
 
-    closeDropdown() {
+    /**
+     * 칸을 닫고 손이 갈 자리를 정한다.
+     * 닫기만 하고 끝내면 포커스가 body로 날아가서, 결국 마우스를 다시 잡아야 한다.
+     * @param {{move?: 'next'|'prev'|'down'|null}} payload
+     */
+    closeEditor(payload = {}) {
+      const { row, col } = this.focus
       this.openCell = null
-    },
+      this.pendingInput = ''
 
-    onWindowKeydown(e) {
-      if (e.key === 'Escape') {
-        this.openCell = null
-      }
+      const move = payload?.move ?? null
+
+      this.$nextTick(() => {
+        if (move === 'next') this.focusCell(row, col + 1, { wrap: true })
+        else if (move === 'prev') this.focusCell(row, col - 1, { wrap: true })
+        else if (move === 'down') this.focusCell(row + 1, col)
+        else this.focusCell(row, col)
+      })
     },
 
     /** 표 밖을 누르면 열린 칸을 닫는다 (목록 안 누름은 목록이 막아 둔다) */
@@ -572,23 +776,49 @@ export default {
       if (!this.openCell) return
       if (e.target.closest?.('.dropdown-container, .ReasonLabel')) return
       this.openCell = null
+      this.pendingInput = ''
+    },
+
+    /** 창 어디서든 듣는 키 — 표 밖에 손이 있어도 도움말은 열려야 한다 */
+    onWindowKeydown(e) {
+      if (e.isComposing || e.keyCode === 229) return
+
+      if (e.key === 'Escape') {
+        if (this.openCell) { this.openCell = null; this.pendingInput = '' }
+        return
+      }
+
+      // 글을 적는 중에는 ?나 /가 글자다
+      if (this.isTypingTarget(e.target)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      if (e.key === '?') {
+        e.preventDefault()
+        this.helpOpen = true
+      } else if (e.key === '/') {
+        e.preventDefault()
+        document.getElementById('ledger-search')?.focus()
+      }
+    },
+
+    isTypingTarget(el) {
+      const tag = el?.tagName
+      if (tag === 'TEXTAREA') return true
+      if (tag === 'INPUT') return !['checkbox', 'radio', 'button'].includes(el.type)
+      return el?.isContentEditable === true
     },
 
     // ---------- 키보드로 칸 옮기기 ----------
     /**
-     * 표 안에서 방향키로 칸을 옮긴다.
-     * 장부는 같은 일을 수십 줄 되풀이하는 일이라,
-     * 마우스로 칸마다 겨누게 하면 그만큼이 그대로 시간이 된다.
+     * 표 안에서의 키. 장부는 같은 일을 수십 줄 되풀이하는 일이라,
+     * 칸마다 마우스로 겨누게 하면 그만큼이 그대로 시간이 된다.
      */
     onGridKeydown(e) {
-      if (!this.canEdit) return
-      if (e.isComposing || e.keyCode === 229) return
-
       const cell = e.target.closest?.('[data-cell]')
       if (!cell) return
 
       const [row, col] = cell.dataset.cell.split('-').map(Number)
-      const editing = e.target.tagName === 'INPUT' && e.target.type !== 'checkbox'
+      const typing = this.isTypingTarget(e.target)
 
       // 윗줄의 분류를 그대로 가져온다 — 같은 성격의 거래가 잇달아 들어오는 일이 많다
       if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
@@ -597,44 +827,181 @@ export default {
         return
       }
 
-      // 글을 고치는 중에는 좌우 방향키가 글자 사이를 오가야 한다
-      if (editing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return
+      // 보이는 줄 모두 고르기
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault()
+        this.selectAllVisible()
+        return
+      }
+
+      // 고치는 중에는 그 칸이 스스로 키를 맡는다 (좌우 방향키는 글자 사이를 오가야 한다)
+      if (typing) return
 
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
+          if (e.shiftKey) this.extendSelection(row, row + 1)
           this.focusCell(row + 1, col)
-          break
+          return
+
         case 'ArrowUp':
           e.preventDefault()
+          if (e.shiftKey) this.extendSelection(row, row - 1)
           this.focusCell(row - 1, col)
-          break
+          return
+
         case 'ArrowLeft':
           e.preventDefault()
           this.focusCell(row, col - 1)
-          break
+          return
+
         case 'ArrowRight':
           e.preventDefault()
           this.focusCell(row, col + 1)
-          break
+          return
+
+        case 'Home':
+          e.preventDefault()
+          if (e.ctrlKey || e.metaKey) this.focusCell(0, col)
+          else this.focusCell(row, 0)
+          return
+
+        case 'End':
+          e.preventDefault()
+          if (e.ctrlKey || e.metaKey) this.focusCell(this.filteredLedgerList.length - 1, col)
+          else this.focusCell(row, LAST_COL)
+          return
+
+        case 'PageDown':
+          e.preventDefault()
+          this.focusCell(Math.min(row + PAGE_ROWS, this.filteredLedgerList.length - 1), col)
+          return
+
+        case 'PageUp':
+          e.preventDefault()
+          this.focusCell(Math.max(row - PAGE_ROWS, 0), col)
+          return
+
+        case 'Escape':
+          // 고른 것을 푼다 — 마우스 없이도 되돌릴 수 있어야 한다
+          if (this.SELECTED_TRANSACTION_LIST.length) {
+            e.preventDefault()
+            this.SELECTED_TRANSACTION_LIST = []
+            this.selectAnchor = null
+            this.showStatus('고른 것을 모두 풀었습니다')
+          }
+          return
+
+        case ' ':
+          // 어느 칸에 있든 Space는 그 줄을 고른다 (고르기 칸에서는 체크박스가 알아서 한다)
+          if (col !== 0 && this.canEdit) {
+            e.preventDefault()
+            this.selectLedgerRow(this.filteredLedgerList[row]?.expand?.transaction?.id)
+            this.selectAnchor = row
+          }
+          return
+
+        case 'Enter':
+        case 'F2':
+          if (CELL_KEY[col] && this.canEdit) {
+            e.preventDefault()
+            this.openEditor(row, col)
+          }
+          return
       }
+
+      // 글자를 치면 그 칸이 바로 열린다 — 엑셀에서 칸에 대고 치는 것과 같게
+      if (!this.canEdit || !TYPE_TO_EDIT.includes(col)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+
+      /*
+        한글은 IME가 먼저 가로챈다.
+        단추에는 글을 적을 자리가 없어서 브라우저가 keyCode 229(또는 'Process')만 흘려보내고
+        정작 글자는 알려 주지 않는다. 그래도 '고치겠다는 뜻'인 건 분명하니 칸은 연다.
+      */
+      const imeSwallowed = e.keyCode === 229 || e.key === 'Process'
+      const printable = e.key.length === 1
+
+      if (!imeSwallowed && !printable) return
+      // 창 전체가 쓰는 키는 칸을 열지 않는다 (? 도움말 · / 검색)
+      if (e.key === '?' || e.key === '/') return
+
+      e.preventDefault()
+
+      /*
+        이어받을 글자는 뜻이 분명한 것만 고른다.
+        IME가 켜져 있으면 한글 자리의 키가 로마자('q' 같은)로 올 수 있는데,
+        그걸 검색칸에 넣으면 지우고 다시 쳐야 한다 — 없느니만 못하다.
+        숫자(계정과목 번호)와 한글은 그대로 이어받는다.
+      */
+      const seed = printable && /^[0-9]$|^[가-힣ㄱ-ㅎㅏ-ㅣ]$/.test(e.key) ? e.key : ''
+      this.openEditor(row, col, seed)
     },
 
-    focusCell(row, col) {
-      if (row < 0 || row >= this.filteredLedgerList.length) return
-      if (col < 0 || col > LAST_COL) return
+    /**
+     * 그 칸의 눌리는 것에 손을 옮긴다.
+     * @param {{wrap?: boolean}} opts wrap이면 줄 끝에서 다음(이전) 줄로 넘어간다
+     */
+    focusCell(row, col, opts = {}) {
+      let r = row
+      let c = col
 
-      const table = this.$refs.tableRef
-      const holder = table?.querySelector(`[data-cell="${row}-${col}"]`)
-      if (!holder) return
+      if (opts.wrap) {
+        if (c > LAST_COL) { c = 0; r += 1 }
+        else if (c < 0) { c = LAST_COL; r -= 1 }
+      }
+
+      if (r < 0 || r >= this.filteredLedgerList.length) return false
+      if (c < 0 || c > LAST_COL) return false
+
+      const holder = this.$refs.tableRef?.querySelector(`[data-cell="${r}-${c}"]`)
+      if (!holder) return false
 
       // 고르기 칸은 그 자체가 입력이고, 나머지는 안에 단추가 들어 있다
       const target = holder.matches('input') ? holder : holder.querySelector('button, input')
-      target?.focus()
+      if (!target) return false
+
+      // 먼저 탭 자리를 옮겨야 focus()가 새 자리에 남는다
+      this.focus = { row: r, col: c }
+      this.touched = true
+      this.$nextTick(() => target.focus({ preventScroll: false }))
+      return true
+    },
+
+    /**
+     * 가장 먼저 적어야 할 칸.
+     * 표에 들어오자마자 '첫 줄 첫 칸'에 서면, 이미 다 적은 줄을 지나 내려가야 한다.
+     */
+    firstTodoCell(list) {
+      for (let r = 0; r < list.length; r += 1) {
+        const l = list[r]
+        if (!l.hang) return { row: r, col: 2 }
+        if (!l.mok) return { row: r, col: 3 }
+        if (!l.saemok) return { row: r, col: 4 }
+        if (!l.reason || !l.reason.trim()) return { row: r, col: 5 }
+        if (!l.not_need_receipt && l.receipt.length === 0) return { row: r, col: 6 }
+      }
+      return { row: 0, col: 2 }
+    },
+
+    /** Shift+방향키로 사이에 있는 줄을 이어서 고른다 */
+    extendSelection(fromRow, toRow) {
+      if (!this.canEdit) return
+      if (this.selectAnchor === null) this.selectAnchor = fromRow
+
+      const lo = Math.min(this.selectAnchor, toRow)
+      const hi = Math.max(this.selectAnchor, toRow)
+      const ids = this.filteredLedgerList
+        .slice(lo, hi + 1)
+        .map(l => l.expand.transaction.id)
+
+      this.SELECTED_TRANSACTION_LIST = [...new Set(ids)]
     },
 
     /** 바로 윗줄의 항·목·세목을 지금 줄에 옮겨 적는다 */
     async copyFromAbove(rowIndex) {
+      if (!this.canEdit) return
+
       if (rowIndex <= 0) {
         this.showStatus('맨 윗줄에서는 가져올 줄이 없습니다')
         return
@@ -824,11 +1191,63 @@ export default {
 
       if (this.allVisibleSelected) {
         this.SELECTED_TRANSACTION_LIST = []
+        this.selectAnchor = null
         return
       }
+      this.selectAllVisible()
+    },
+
+    selectAllVisible() {
+      if (!this.canEdit) return
       this.SELECTED_TRANSACTION_LIST = [
         ...new Set(this.filteredLedgerList.map(l => l.expand.transaction.id))
       ]
+      this.showStatus(`보이는 ${this.SELECTED_TRANSACTION_LIST.length}건을 모두 골랐습니다`)
+    },
+
+    /**
+     * 고른 줄들의 지출증빙을 한꺼번에 바꾼다.
+     * 줄마다 창을 열어 토글하면 스무 줄에 스무 번 창을 여닫아야 한다.
+     * @param {boolean} notNeed true면 '증빙 불요', false면 '미처리'로 되돌린다
+     */
+    async applyBulkReceipt(notNeed) {
+      if (!this.canEdit || this.bulkBusy) return
+
+      const targets = [...this.selectedLedgers]
+      if (targets.length === 0) return
+
+      // 불요로 돌리면 이미 올려 둔 영수증이 지워진다 — 지워질 것이 있을 때만 묻는다
+      const withFiles = targets.filter(l => l.receipt?.length > 0)
+      if (notNeed && withFiles.length > 0) {
+        const ok = window.confirm(
+          `${withFiles.length}건에 이미 영수증이 올라와 있습니다.\n`
+          + '불요로 바꾸면 그 영수증은 지워집니다. 계속할까요?'
+        )
+        if (!ok) return
+      }
+
+      const before = targets.map(l => ({ not_need_receipt: l.not_need_receipt, receipt: l.receipt }))
+      const patch = notNeed
+        ? { not_need_receipt: true, receipt: [] }
+        : { not_need_receipt: false }
+
+      this.bulkBusy = true
+      targets.forEach(l => Object.assign(l, patch))
+
+      try {
+        await Promise.all(targets.map(l => pb.collection('Ledger').update(l.id, patch)))
+        this.showStatus(
+          notNeed
+            ? `${targets.length}건을 증빙 불요로 표시했습니다`
+            : `${targets.length}건을 증빙 미처리로 되돌렸습니다`
+        )
+      } catch (error) {
+        console.error('Failed to bulk update receipts:', error)
+        targets.forEach((l, i) => Object.assign(l, before[i]))
+        this.showError('지출증빙을 한꺼번에 바꾸지 못했습니다.')
+      } finally {
+        this.bulkBusy = false
+      }
     },
 
     // ---------- 불러오기 ----------
@@ -1186,10 +1605,90 @@ input.select[type='checkbox']:disabled {
     opacity: 0.4;
 }
 
-.grid-hint {
+/* 지금 손이 가 있는 줄. 어느 줄에서 키를 누르는지 보여야 한다 */
+tr.ledger_row.is-cursor-row td {
+    background-image: linear-gradient(var(--bg-active), var(--bg-active));
+}
+
+.controls-right {
     display: flex;
     align-items: center;
     gap: var(--spacing-2);
+}
+
+.keys-btn kbd {
+    padding: 0 5px;
+    border: 1px solid var(--border-color-strong);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    font-family: inherit;
+    font-size: 0.95em;
+    color: var(--text-secondary);
+}
+
+/* ---------- 단축키 도움말 ---------- */
+.keys-group + .keys-group {
+    margin-top: var(--spacing-5);
+}
+
+.keys-group h3 {
+    margin: 0 0 var(--spacing-2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-secondary);
+}
+
+.keys-group dl {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.keys-row {
+    display: grid;
+    grid-template-columns: 148px minmax(0, 1fr);
+    gap: var(--spacing-3);
+    align-items: baseline;
+    padding: var(--spacing-1) var(--spacing-2);
+    border-radius: var(--border-radius-sm);
+}
+
+.keys-row:nth-child(odd) {
+    background: var(--bg-secondary);
+}
+
+.keys-row dt {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+}
+
+.keys-row dd {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-primary);
+}
+
+.keys-row kbd {
+    display: inline-block;
+    min-width: 20px;
+    padding: 1px 5px;
+    border: 1px solid var(--border-color-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    text-align: center;
+}
+
+.grid-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
     flex-wrap: wrap;
 }
 
@@ -1370,6 +1869,16 @@ input.select[type='checkbox']:disabled {
 
     .grid-hint {
         display: none;
+    }
+
+    /* 손가락으로 쓰는 화면에서는 단축키가 쓸모없다 */
+    .keys-btn {
+        display: none;
+    }
+
+    .keys-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--spacing-1);
     }
 
     .actionbar {

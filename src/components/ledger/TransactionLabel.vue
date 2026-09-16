@@ -3,6 +3,7 @@
         <button
             type="button"
             class="transaction-number"
+            :tabindex="tabindex"
             aria-haspopup="dialog"
             :aria-label="`${bankSetting.NickName} 거래 ${transaction.no}번 원본 보기`"
             @click="modalOpen = true"
@@ -162,7 +163,12 @@ import AppModal from '../layout/AppModal.vue';
 export default {
     components: { AppModal },
 
-    props: ['transaction', 'bankSettingList'],
+    props: {
+        transaction: { required: true },
+        bankSettingList: { type: Array, default: () => [] },
+        /** 표가 탭 스톱 하나만 갖도록 바깥에서 정해 준다 */
+        tabindex: { type: Number, default: 0 },
+    },
 
     data(){
         return {

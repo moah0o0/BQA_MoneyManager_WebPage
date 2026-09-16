@@ -9,6 +9,7 @@
     class="receipt-label"
     :class="statusLabelStyle"
     :disabled="!canEdit && RECEIPT_LIST.length === 0"
+    :tabindex="tabindex"
     aria-haspopup="dialog"
     :aria-label="`지출증빙 ${statusLabel}. 눌러서 관리`"
     @click="modalOpen = true"
@@ -94,7 +95,12 @@ export default {
   components: { AppModal },
 
   emits: ['update-complete'], 
-  props: ['ledgerRecord', 'canEdit'],
+  props: {
+    ledgerRecord: { required: true },
+    canEdit: { type: Boolean, default: false },
+    /** 표가 탭 스톱 하나만 갖도록 바깥에서 정해 준다 */
+    tabindex: { type: Number, default: 0 },
+  },
 
   data() {
     return {
@@ -139,6 +145,22 @@ export default {
       // 추가 페이지는 canEdit이 true이고, 현재 페이지가 MAX_PAGINATOR일 때만 참입니다.
       return this.canEdit && (this.CURRENT_PAGINATOR === this.MAX_PAGINATOR)
     }
+  },
+
+  watch: {
+    /*
+      바깥에서 이 줄이 바뀌면(한꺼번에 증빙 처리 등) 따라 바뀌어야 한다.
+      mounted에서 한 번 복사해 두기만 하면, 표는 바뀌었는데 이 칸만 옛 값을 보여 준다.
+    */
+    ledgerRecord: {
+      deep: true,
+      handler(next) {
+        if (!next) return
+        this.localLedger = { ...next }
+        this.notNeedReceipt = next.not_need_receipt || false
+        this.refreshReceipts()
+      },
+    },
   },
 
   mounted() {
