@@ -180,13 +180,9 @@ export default {
         });
       }
 
-      if(this.type == "Saemok"){
-        list = list.filter(asset => {
-          if(!this.ledgerRecord.mok) return false
-          if(!this.ledgerRecord.expand?.mok?.is_able_specific_saemok) return true
-          if(this.ledgerRecord.expand.mok.able_specific_saemok_list.includes(asset.id)) return true
-          return false
-        })
+      // 세목은 목을 고른 뒤에만 고를 수 있다 (목마다 쓸 세목을 제한하던 기능은 걷어냈다)
+      if (this.type == "Saemok" && !this.ledgerRecord.mok) {
+        list = []
       }
 
       return list.map(asset => ({
