@@ -59,13 +59,11 @@ export default {
                     label: '설정',
                     items: [
                         { id: 2, name: '계정과목', icon: 'bi-tag' },
-                        { id: 4, name: '예산', icon: 'bi-calendar-check' },
                     ]
                 },
                 {
-                    label: '확인 · 출력',
+                    label: '출력',
                     items: [
-                        { id: 5, name: '예산현황', icon: 'bi-graph-up' },
                         { id: 3, name: '공금보고서', icon: 'bi-file-earmark-medical' },
                     ]
                 },

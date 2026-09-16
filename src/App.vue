@@ -57,17 +57,6 @@
           :init-date="ORGANIZATION_INIT_DATE"
           :organization-name="ORGANIZATION_NAME"
         />
-
-        <TabBudget
-          v-if="currentMenu == 4"
-          :login-status="loginStatus"
-          :can-edit="canEdit"
-        />
-
-        <TabBudgetMonitor
-          v-if="currentMenu == 5"
-          :login-status="loginStatus"
-        />
       </template>
     </main>
   </div>
@@ -82,8 +71,6 @@ import BarMenu from './components/layout/BarMenu.vue'
 import TabLedger from './components/ledger/TabLedger.vue'
 import TabAssets from './components/assets/TabAssets.vue'
 import TabReport from './components/report/TabReport.vue'
-import TabBudget from './components/budget/TabBudget.vue'
-import TabBudgetMonitor from './components/budget/TabBudgetMonitor.vue'
 
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__)
 
@@ -92,8 +79,6 @@ const MENU_TITLES = {
   1: '장부',
   2: '계정과목',
   3: '공금보고서',
-  4: '예산',
-  5: '예산현황',
 }
 
 export default {
@@ -101,8 +86,6 @@ export default {
     TabLedger,
     TabAssets,
     TabReport,
-    TabBudget,
-    TabBudgetMonitor,
     BarHeader,
     BarMenu
   },
@@ -150,7 +133,9 @@ export default {
     const params = new URLSearchParams(window.location.search)
     const menuParam = params.get("current_menu")
     if (menuParam != null) {
-      this.currentMenu = parseInt(menuParam)
+      // 없어진 화면(예산·예산현황)을 가리키는 옛 주소가 남아 있을 수 있다 — 장부로 되돌린다
+      const n = parseInt(menuParam)
+      this.currentMenu = MENU_TITLES[n] ? n : 1
     }
 
     this.updateLoginData()

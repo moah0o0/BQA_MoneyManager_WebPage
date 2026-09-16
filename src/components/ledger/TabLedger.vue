@@ -6,7 +6,7 @@
                     <h1 class="page-title">장부</h1>
                     <p class="page-desc">은행에서 불러온 거래에 항·목·세목과 내용을 적습니다.</p>
                 </div>
-                <div class="acts" v-if="effectiveCanEdit">
+                <div class="acts" v-if="canEdit">
                     <AddTransactionModal
                         ref="addTransactionModal"
                         @refresh="refreshLedger"
@@ -14,10 +14,6 @@
                         :filter-end-date=filterEndDate>
                     </AddTransactionModal>
                 </div>
-                <p class="notice notice-warning closed-period-notice" v-else-if="canEdit && isCurrentPeriodClosed" role="status">
-                    <i class="bi bi-lock-fill" aria-hidden="true"></i>
-                    마감된 회계기간이라 고칠 수 없습니다
-                </p>
             </div>
 
             <!--
@@ -59,7 +55,7 @@
                 @refresh="refreshAddTransactionModal"
                 :filter-start-date=filterStartDate
                 :filter-end-date=filterEndDate
-                :canEdit="effectiveCanEdit">
+                :canEdit="canEdit">
             </LedgerTable>
         </template>
     </div>
@@ -69,8 +65,6 @@
 import AddTransactionModal from './AddTransactionModal.vue';
 import LedgerTable from './LedgerTable.vue';
 import { nextTick } from "vue"
-import PocketBase from 'pocketbase';
-const pb = new PocketBase(__POCKETBASE_API_BASE_URL__);
 
 export default {
     props:['loginStatus', 'canEdit', 'initDate'],
@@ -84,26 +78,15 @@ export default {
             filterMonth:null,
             filterStartDate:null,
             filterEndDate:null,
-            closedPeriods: [],
-            isCurrentPeriodClosed: false,
         }
     },
 
-
-    computed: {
-        effectiveCanEdit() {
-            return this.canEdit && !this.isCurrentPeriodClosed;
-        }
-    },
-
-    async created(){
+    created(){
         this.makeFilterDateList()
-        await this.loadClosedPeriods()
 
         nextTick(() => {
             this.InitFilter()
         })
-
     },
 
     methods: {
@@ -139,33 +122,6 @@ export default {
             // 옮기면 그 달을 바로 보여 준다. 고르기 위해 한 번 더 누르게 하지 않는다
             buttons[next].focus()
             buttons[next].click()
-        },
-
-        async loadClosedPeriods() {
-            try {
-                this.closedPeriods = await pb.collection('Periods').getFullList({
-                    filter: 'is_closed = true',
-                    requestKey: null
-                });
-            } catch (error) {
-                console.error('Failed to load closed periods:', error);
-                this.closedPeriods = [];
-            }
-        },
-
-        checkPeriodClosed() {
-            if (!this.filterStartDate || !this.filterEndDate) {
-                this.isCurrentPeriodClosed = false;
-                return;
-            }
-
-            // 현재 필터 범위가 마감된 기간과 겹치는지 확인
-            this.isCurrentPeriodClosed = this.closedPeriods.some(period => {
-                const periodStart = period.start_date;
-                const periodEnd = period.end_date;
-                // 기간이 겹치는지 확인: !(filterEnd < periodStart || filterStart > periodEnd)
-                return !(this.filterEndDate < periodStart || this.filterStartDate > periodEnd);
-            });
         },
 
         InitFilter(){
@@ -272,9 +228,6 @@ export default {
             this.filterYear = year;
             this.filterMonth = month;
 
-            // 마감된 기간인지 확인
-            this.checkPeriodClosed();
-
             const params = new URLSearchParams(window.location.search);
             params.set("filter_year", year);
             params.set("filter_month", month);
@@ -295,10 +248,6 @@ export default {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-4);
-}
-
-.closed-period-notice {
-    margin: 0;
 }
 
 .toolbar {

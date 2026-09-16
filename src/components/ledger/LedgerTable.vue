@@ -668,13 +668,7 @@ export default {
         list = list.filter(m => m.expand?.parent_hang?.id === this.commonHang)
       }
 
-      if (type === 'Saemok') {
-        if (!this.commonMok) return []
-        const mok = this.ASSETS_LIST.Mok.find(m => m.id === this.commonMok)
-        if (mok?.is_able_specific_saemok) {
-          list = list.filter(s => mok.able_specific_saemok_list?.includes(s.id))
-        }
-      }
+      if (type === 'Saemok' && !this.commonMok) return []
 
       return list.map(a => ({ ...a, priority_string: this.zeroPad(a.priority, PAD[type]) }))
     },
@@ -1131,40 +1125,16 @@ export default {
       this.onlyInvalid = false
     },
 
-    // 필터 모달에 표시할 목록을 가져옵니다. (계층적/조건부 필터링 로직)
+    /** 거르개 창에 보일 목록 */
     getFilterOptionsByType(type) {
       if (!type) return []
 
       let list = [...this.ASSETS_LIST[type]];
       const pendingHangIds = this.pendingFilters.Hang;
-      const pendingMokIds = this.pendingFilters.Mok;
 
-      // 1. Mok 필터링 규칙 적용 (Hang 필터에 종속)
+      // 목 거르개는 항 거르개에 딸린다
       if (type === 'Mok' && pendingHangIds.length > 0) {
         list = list.filter(mok => pendingHangIds.includes(mok.parent_hang));
-      }
-
-      // 2. Saemok 필터링 규칙 적용 (Mok 필터에 종속)
-      else if (type === 'Saemok' && pendingMokIds.length > 0) {
-        let allowedSaemokIds = new Set();
-        let shouldRestrict = false;
-
-        const selectedMoks = this.ASSETS_LIST.Mok.filter(mok => pendingMokIds.includes(mok.id));
-
-        selectedMoks.forEach(mok => {
-          if (mok.is_able_specific_saemok) {
-            shouldRestrict = true;
-            if (mok.expand && mok.expand.able_specific_saemok_list) {
-              mok.expand.able_specific_saemok_list.forEach(saemok => {
-                allowedSaemokIds.add(saemok.id);
-              });
-            }
-          }
-        });
-
-        if (shouldRestrict) {
-            list = list.filter(saemok => allowedSaemokIds.has(saemok.id));
-        }
       }
 
       const desiredLength = PAD[type];
@@ -1281,7 +1251,7 @@ export default {
         const [hangs, moks, saemoks, bankSettings] = await Promise.all([
           pb.collection('AssetsHang').getFullList({ sort: 'priority' }),
           pb.collection('AssetsMok').getFullList({
-              expand: 'parent_hang,able_specific_saemok_list',
+              expand: 'parent_hang',
               sort: 'priority'
           }),
           pb.collection('AssetsSaemok').getFullList({ sort: 'priority' }),
