@@ -12,6 +12,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "pdfjs-dist": "^4.10.38",
     "pocketbase": "^0.26.2",
     "vue": "^3.5.18",
     "vue-draggable-next": "^2.3.0"

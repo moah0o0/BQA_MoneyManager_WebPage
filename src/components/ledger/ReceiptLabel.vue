@@ -41,16 +41,29 @@
         <i class="bi bi-lock-fill" aria-hidden="true"></i>
         조회 전용이라 고칠 수 없습니다.
       </p>
+
+      <p v-if="uploadError" class="notice notice-danger upload-error" role="alert">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <span>{{ uploadError }}</span>
+      </p>
     </section>
 
     <!-- 영수증 -->
     <section class="view-receipt-container" v-if="showReceipts">
       <div v-if="isAddPage && canEdit" class="new-receipt">
-        <label class="upload-btn">
+        <!-- 옮기는 중에는 같은 자리에 어디까지 왔는지 띄운다 -->
+        <p v-if="busy" class="uploading" role="status" aria-live="polite">
+          <i class="bi bi-arrow-repeat animate-spin" aria-hidden="true"></i>
+          <b>{{ busyText }}</b>
+          <small>창을 닫지 말고 잠시 기다려 주세요.</small>
+        </p>
+
+        <label v-else class="upload-btn">
           <i class="bi bi-upload" aria-hidden="true"></i>
-          <b>영수증 파일 올리기</b>
-          <small>png · jpg · jpeg</small>
-          <input type="file" accept=".png,.jpg,.jpeg" @change="uploadReceipt" hidden />
+          <b>영수증 올리기</b>
+          <small>png · jpg · jpeg · pdf · 여러 장 한꺼번에</small>
+          <small class="hint-pdf">PDF는 쪽마다 그림으로 바꿔 모두 붙입니다.</small>
+          <input type="file" accept=".png,.jpg,.jpeg,.pdf,image/*,application/pdf" multiple @change="uploadReceipt" hidden />
         </label>
       </div>
 
@@ -88,6 +101,7 @@
 <script>
 import PocketBase from 'pocketbase';
 import AppModal from '../layout/AppModal.vue';
+import { isPdf, pdfPageCount, pdfToImageFiles } from '../../utils/pdfToImages.js';
 // NOTE: __POCKETBASE_API_BASE_URL__ 변수는 런타임 환경에서 제공됩니다.
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__);
 
@@ -109,7 +123,12 @@ export default {
       MAX_PAGINATOR: 1, // 실제 데이터 + 1 (추가 페이지) 기준
       CURRENT_PAGINATOR: 1,
       localLedger: null,
-      notNeedReceipt: null
+      notNeedReceipt: null,
+
+      /** 옮기거나 올리는 중 — 그 사이에 또 고르지 못하게 막는다 */
+      busy: false,
+      busyText: '',
+      uploadError: '',
     }
   },
 
@@ -239,34 +258,87 @@ export default {
       if (url) window.open(url, "_blank", "noopener")
     },
 
+    /** 쪽수가 많으면 시간이 걸린다 — 시작하기 전에 먼저 알린다 */
+    async confirmBigPdf(file) {
+      const pages = await pdfPageCount(file)
+      if (pages <= 15) return pages
+
+      const ok = window.confirm(
+        `'${file.name}'은 ${pages}쪽입니다.\n`
+        + `${pages}장의 그림으로 바꿔 모두 붙입니다. 시간이 조금 걸립니다.\n\n계속할까요?`
+      )
+      return ok ? pages : null
+    },
+
+    /**
+     * 고른 파일을 붙인다.
+     * PDF는 쪽마다 그림으로 바꿔 한 장씩 붙인다 — 증빙은 그림으로만 보관하기 때문이다.
+     * 예전에는 한 번에 한 장만, 그것도 그림만 받아서
+     * 여러 쪽짜리 전표는 사람이 손으로 캡처해 되풀이해 올려야 했다.
+     */
     async uploadReceipt(e) {
-      if (!this.canEdit) return; // 권한 체크
+      if (!this.canEdit || this.busy) return
 
-      const file = e.target.files[0]
-      if (!file) return
+      const picked = [...(e.target.files ?? [])]
+      const input = e.target
+      if (picked.length === 0) return
 
-      const validExtensions = ["image/png", "image/jpeg"]
-      // NOTE: alert()는 실제 앱에서는 커스텀 모달로 대체되어야 합니다.
-      if (!validExtensions.includes(file.type)) {
-        console.error("PNG, JPG, JPEG 파일만 업로드 가능합니다.")
-        return
-      }
-
-      const formData = new FormData()
-      this.localLedger.receipt.forEach(r => formData.append("receipt", r))
-      formData.append("receipt", file)
+      this.uploadError = ''
+      this.busy = true
+      this.busyText = '파일을 살펴보는 중…'
 
       try {
-        const updated = await pb.collection("Ledger").update(this.localLedger.id, formData)
+        const toUpload = []
+
+        for (const file of picked) {
+          if (isPdf(file)) {
+            const pages = await this.confirmBigPdf(file)
+            if (pages === null) continue   // 사람이 그만두었다
+
+            this.busyText = `${file.name} — 쪽을 그림으로 바꾸는 중…`
+            const images = await pdfToImageFiles(file, (done, total) => {
+              this.busyText = `${file.name} — ${done}/${total}쪽 바꾸는 중…`
+            })
+            toUpload.push(...images)
+            continue
+          }
+
+          if (!['image/png', 'image/jpeg'].includes(file.type)) {
+            this.uploadError = `'${file.name}'은 붙일 수 없습니다. png · jpg · pdf만 됩니다.`
+            continue
+          }
+
+          toUpload.push(file)
+        }
+
+        if (toUpload.length === 0) {
+          if (!this.uploadError) this.uploadError = '붙일 것이 없습니다.'
+          return
+        }
+
+        this.busyText = `${toUpload.length}장 올리는 중…`
+
+        const formData = new FormData()
+        // 이미 붙어 있던 것은 이름만 다시 보내면 그대로 남는다
+        this.localLedger.receipt.forEach(r => formData.append('receipt', r))
+        toUpload.forEach(f => formData.append('receipt', f))
+
+        const updated = await pb.collection('Ledger').update(this.localLedger.id, formData)
         this.localLedger = updated
         this.refreshReceipts()
-        // 새 이미지를 업로드했으면 해당 이미지 페이지로 이동
-        this.CURRENT_PAGINATOR = this.RECEIPT_LIST.length
-        e.target.value = ""
+
+        // 방금 붙인 것 가운데 첫 장을 보여 준다 — 제대로 들어갔는지 눈으로 확인하는 자리
+        this.CURRENT_PAGINATOR = Math.max(1, this.RECEIPT_LIST.length - toUpload.length + 1)
         this.$emit('update-complete')
       } catch (err) {
-        console.error(err)
-        console.error("업로드 실패")
+        console.error('영수증 올리기 실패:', err)
+        this.uploadError = err?.message?.includes('쪽')
+          ? 'PDF를 그림으로 바꾸지 못했습니다. 파일이 깨졌는지 확인해 주세요.'
+          : '올리지 못했습니다. 파일 크기나 인터넷 연결을 확인해 주세요.'
+      } finally {
+        this.busy = false
+        this.busyText = ''
+        input.value = ''
       }
     }
   }
@@ -421,6 +493,61 @@ export default {
 .upload-btn small {
   color: var(--text-muted);
   font-size: var(--text-xs);
+}
+
+.upload-btn .hint-pdf {
+  margin-top: var(--spacing-1);
+  color: var(--primary-700);
+}
+
+[data-theme="dark"] .upload-btn .hint-pdf {
+  color: var(--primary-300);
+}
+
+/* 옮기는 중 — 올리는 자리와 같은 크기로 두어 화면이 튀지 않게 한다 */
+.uploading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  min-height: 240px;
+  margin: 0;
+  padding: var(--spacing-6);
+  border: 2px dashed var(--primary-300);
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.uploading i {
+  font-size: 1.5rem;
+  color: var(--primary-600);
+}
+
+.uploading b {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.uploading small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+[data-theme="dark"] .uploading {
+  border-color: var(--primary-800);
+}
+
+[data-theme="dark"] .uploading i {
+  color: var(--primary-400);
+}
+
+.upload-error {
+  margin: var(--spacing-3) 0 0;
 }
 
 .already-receipt {
