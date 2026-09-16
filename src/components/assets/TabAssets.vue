@@ -30,12 +30,39 @@
                 <section class="panel" aria-labelledby="hang-mok-title">
                     <header>
                         <h2 id="hang-mok-title">항 · 목</h2>
-                        <span class="count num">{{ HANGS.length }}항 · {{ MOKS.length }}목</span>
+                        <div class="head-right">
+                            <span class="count num">{{ HANGS.length }}항 · {{ activeMokCount }}목</span>
+                            <!-- 잠근 목은 평소엔 안 보인다. 풀려면 여기서 꺼내 본다 -->
+                            <button
+                                v-if="lockedCount > 0"
+                                type="button"
+                                class="chip"
+                                :class="{ on: showLocked }"
+                                :aria-pressed="showLocked ? 'true' : 'false'"
+                                @click="showLocked = !showLocked"
+                            >
+                                <i class="bi bi-lock-fill" aria-hidden="true"></i>
+                                잠근 목 <span class="num">{{ lockedCount }}</span>
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" @click="toggleAll">
+                                {{ allOpen ? '모두 접기' : '모두 펼치기' }}
+                            </button>
+                        </div>
                     </header>
 
                     <ul class="tree">
                         <template v-for="hang in visibleHangs" :key="hang.id">
                             <li class="row row-hang">
+                                <!-- 39목이 통째로 펼쳐져 있으면 한 항을 보려고 한참 굴려야 한다 -->
+                                <button
+                                    type="button"
+                                    class="fold"
+                                    :aria-expanded="isOpen(hang.id) ? 'true' : 'false'"
+                                    :aria-label="`${hang.label} ${isOpen(hang.id) ? '접기' : '펼치기'}`"
+                                    @click="toggleFold(hang.id)"
+                                >
+                                    <i :class="['bi', isOpen(hang.id) ? 'bi-chevron-down' : 'bi-chevron-right']" aria-hidden="true"></i>
+                                </button>
                                 <span class="priority num">{{ zeroPad(hang.priority, 2) }}</span>
                                 <InlineEditor
                                     v-if="canEdit"
@@ -44,6 +71,7 @@
                                     @change="rename('Hang', hang, $event)"
                                 />
                                 <span v-else class="name name-hang">{{ hang.label }}</span>
+                                <span class="mok-count num">{{ moksOf(hang.id).length }}목</span>
 
                                 <div class="row-acts" v-if="canEdit && !query">
                                     <button type="button" class="icon-btn" :disabled="isFirst(HANGS, hang)"
@@ -64,37 +92,52 @@
                                 </div>
                             </li>
 
-                            <li v-for="mok in moksOf(hang.id)" :key="mok.id" class="row row-mok">
+                            <li v-for="mok in (isOpen(hang.id) ? moksOf(hang.id) : [])" :key="mok.id"
+                                class="row row-mok" :class="{ 'is-locked': mok.lock }">
                                 <span class="indent" aria-hidden="true"></span>
                                 <span class="priority num">{{ zeroPad(mok.priority, 3) }}</span>
+                                <!-- 잠근 목은 이름도 못 고친다. 풀고 나서 고쳐야 한다 -->
                                 <InlineEditor
-                                    v-if="canEdit"
+                                    v-if="canEdit && !mok.lock"
                                     :value="mok.label"
                                     class="name"
                                     @change="rename('Mok', mok, $event)"
                                 />
                                 <span v-else class="name">{{ mok.label }}</span>
+                                <span v-if="mok.lock" class="lock-badge">
+                                    <i class="bi bi-lock-fill" aria-hidden="true"></i> 잠김
+                                </span>
 
                                 <div class="row-acts" v-if="canEdit && !query">
-                                    <button type="button" class="icon-btn" :disabled="isFirst(moksOf(hang.id), mok)"
-                                        :aria-label="`${mok.label} 위로`" title="위로"
-                                        @click="move('Mok', moksOf(hang.id), mok, -1)">
-                                        <i class="bi bi-arrow-up" aria-hidden="true"></i>
+                                    <button type="button" class="icon-btn"
+                                        :class="{ 'is-on': mok.lock }"
+                                        :aria-pressed="mok.lock ? 'true' : 'false'"
+                                        :aria-label="`${mok.label} ${mok.lock ? '잠금 풀기' : '잠그기'}`"
+                                        :title="mok.lock ? '잠금 풀기' : '잠그기 — 더는 쓰지 않는 목을 숨긴다'"
+                                        @click="toggleLock(mok)">
+                                        <i :class="['bi', mok.lock ? 'bi-lock-fill' : 'bi-unlock']" aria-hidden="true"></i>
                                     </button>
-                                    <button type="button" class="icon-btn" :disabled="isLast(moksOf(hang.id), mok)"
-                                        :aria-label="`${mok.label} 아래로`" title="아래로"
-                                        @click="move('Mok', moksOf(hang.id), mok, 1)">
-                                        <i class="bi bi-arrow-down" aria-hidden="true"></i>
-                                    </button>
-                                    <button type="button" class="icon-btn danger"
-                                        :aria-label="`${mok.label} 목 지우기`" title="지우기"
-                                        @click="removeMok(mok)">
-                                        <i class="bi bi-trash3" aria-hidden="true"></i>
-                                    </button>
+                                    <template v-if="!mok.lock">
+                                        <button type="button" class="icon-btn" :disabled="isFirst(moksOf(hang.id), mok)"
+                                            :aria-label="`${mok.label} 위로`" title="위로"
+                                            @click="move('Mok', moksOf(hang.id), mok, -1)">
+                                            <i class="bi bi-arrow-up" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" class="icon-btn" :disabled="isLast(moksOf(hang.id), mok)"
+                                            :aria-label="`${mok.label} 아래로`" title="아래로"
+                                            @click="move('Mok', moksOf(hang.id), mok, 1)">
+                                            <i class="bi bi-arrow-down" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button" class="icon-btn danger"
+                                            :aria-label="`${mok.label} 목 지우기`" title="지우기"
+                                            @click="removeMok(mok)">
+                                            <i class="bi bi-trash3" aria-hidden="true"></i>
+                                        </button>
+                                    </template>
                                 </div>
                             </li>
 
-                            <li v-if="canEdit && !query" :key="`add-${hang.id}`" class="row row-add">
+                            <li v-if="canEdit && !query && isOpen(hang.id)" :key="`add-${hang.id}`" class="row row-add">
                                 <span class="indent" aria-hidden="true"></span>
                                 <button type="button" class="add-btn" @click="createMok(hang.id)">
                                     <i class="bi bi-plus-lg" aria-hidden="true"></i> 목 더하기
@@ -202,6 +245,10 @@ export default {
             SAEMOKS: [],
             loaded: false,
             query: '',
+            /** 접어 둔 항. 기본은 다 펼침 — 처음 온 사람은 무엇이 있는지부터 봐야 한다 */
+            folded: new Set(),
+            /** 잠근 목까지 보여 줄지. 잠그는 까닭이 '안 보이게'이므로 평소엔 감춘다 */
+            showLocked: false,
             statusMessage: '',
             errorMessage: '',
         }
@@ -215,7 +262,7 @@ export default {
             // 항 이름이 걸리거나, 그 아래 목이 걸리면 항도 함께 남긴다
             return this.HANGS.filter(h =>
                 h.label.toLowerCase().includes(q)
-                || this.MOKS.some(m => this.parentId(m) === h.id && m.label.toLowerCase().includes(q))
+                || this.moksOf(h.id).some(m => m.label.toLowerCase().includes(q))
             )
         },
 
@@ -228,6 +275,18 @@ export default {
         /** 기본 세목(미지정)은 늘 맨 앞에 둔다 — 차례를 바꿀 수 있는 것만 따로 센다 */
         movableSaemoks() {
             return this.SAEMOKS.filter(s => !s.is_none_field)
+        },
+
+        allOpen() {
+            return this.HANGS.every(h => this.isOpen(h.id))
+        },
+
+        lockedCount() {
+            return this.MOKS.filter(m => m.lock).length
+        },
+
+        activeMokCount() {
+            return this.MOKS.length - this.lockedCount
         },
     },
 
@@ -250,12 +309,52 @@ export default {
 
         moksOf(hangId) {
             const q = this.query.trim().toLowerCase()
-            const list = this.MOKS.filter(m => this.parentId(m) === hangId)
+            const list = this.MOKS
+                .filter(m => this.parentId(m) === hangId)
+                .filter(m => this.showLocked || !m.lock)
             if (!q) return list
             // 항 이름으로 걸렸으면 그 아래 목은 다 보여 준다
             const hang = this.HANGS.find(h => h.id === hangId)
             if (hang?.label.toLowerCase().includes(q)) return list
             return list.filter(m => m.label.toLowerCase().includes(q))
+        },
+
+        /** 찾는 중에는 다 펼친다 — 접힌 항 속에 결과가 숨으면 못 찾은 줄 안다 */
+        isOpen(hangId) {
+            return !!this.query.trim() || !this.folded.has(hangId)
+        },
+
+        toggleFold(hangId) {
+            const next = new Set(this.folded)
+            next.has(hangId) ? next.delete(hangId) : next.add(hangId)
+            this.folded = next
+        },
+
+        toggleAll() {
+            this.folded = this.allOpen ? new Set(this.HANGS.map(h => h.id)) : new Set()
+        },
+
+        /**
+         * 목을 잠근다 / 푼다.
+         * 더는 쓰지 않는 목을 지우면 그 목으로 적어 둔 옛 장부의 분류가 통째로 비어
+         * 지난 보고서를 다시 뽑을 수 없게 된다. 잠그면 새로 고르지만 못하고 기록은 남는다.
+         */
+        async toggleLock(mok) {
+            if (!this.canEdit) return
+
+            const next = !mok.lock
+            mok.lock = next   // 화면을 먼저 바꾼다
+
+            try {
+                await pb.collection('AssetsMok').update(mok.id, { lock: next })
+                this.showStatus(next
+                    ? `'${mok.label}'을(를) 잠갔습니다. 장부에서 더는 고를 수 없습니다`
+                    : `'${mok.label}'의 잠금을 풀었습니다`)
+            } catch (error) {
+                console.error('Failed to toggle lock:', error)
+                mok.lock = !next
+                this.showError('잠금을 바꾸지 못했습니다.')
+            }
         },
 
         isFirst(list, item) { return list.indexOf(item) <= 0 },
@@ -522,29 +621,59 @@ export default {
     pointer-events: none;
 }
 
-/* 항·목과 세목을 나란히 둔다. 세목은 겹창 안에 있어서 열기 전엔 보이지 않았다 */
+/*
+   항·목과 세목을 나란히 둔다. 세목은 겹창 안에 있어서 열기 전엔 보이지 않았다.
+
+   두 칸은 화면 높이에 맞추고 안에서 굴린다.
+   그냥 쌓아 두면 항이 다섯에 목이 서른아홉만 되어도 페이지가 세 화면 길이가 되고,
+   짧은 세목 칸 아래로 천백 픽셀이 빈 채로 남는다.
+*/
 .assets-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
     gap: var(--spacing-4);
-    align-items: start;
+    height: calc(100vh - 230px);
+    min-height: 420px;
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .panel > header {
     align-items: baseline;
+    flex-shrink: 0;
+}
+
+.head-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
 }
 
 .panel .count {
     font-size: var(--text-xs);
     color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.panel > .hint {
+    flex-shrink: 0;
 }
 
 .tree {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     margin: 0;
     padding: 0;
     list-style: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .row {
@@ -560,10 +689,49 @@ export default {
     background: var(--bg-secondary);
 }
 
+/* 굴려도 어느 항을 보고 있는지 알아야 한다 */
 .row-hang {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     margin-top: var(--spacing-2);
     border-top: 1px solid var(--border-color);
     padding-top: var(--spacing-2);
+    background: var(--bg-primary);
+}
+
+.row-hang:hover {
+    background: var(--bg-primary);
+}
+
+.fold {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+}
+
+.fold:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.mok-count {
+    flex-shrink: 0;
+    margin-left: var(--spacing-2);
+    padding: 1px var(--spacing-2);
+    border-radius: var(--border-radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
 }
 
 .tree > .row-hang:first-child {
@@ -574,7 +742,8 @@ export default {
 .indent {
     display: inline-block;
     flex-shrink: 0;
-    width: var(--spacing-5);
+    /* 항 줄의 접기 단추 자리만큼 맞춰 들여쓴다 */
+    width: calc(22px + var(--spacing-2));
 }
 
 .priority {
@@ -687,6 +856,39 @@ export default {
     margin-left: var(--spacing-2);
 }
 
+/* 잠근 목은 '지워진 것'이 아니라 '쓰지 않는 것'이다 — 흐리게 두되 읽히게 */
+.row-mok.is-locked .name,
+.row-mok.is-locked .priority {
+    color: var(--text-muted);
+}
+
+.lock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    margin-left: var(--spacing-2);
+    padding: 1px var(--spacing-2);
+    border-radius: var(--border-radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.icon-btn.is-on {
+    color: var(--warning-600);
+}
+
+[data-theme="dark"] .icon-btn.is-on {
+    color: var(--warning-200);
+}
+
+/* 잠근 목은 손대는 자리가 늘 보여야 한다 — 풀려면 그 단추를 찾아야 하므로 */
+.row-mok.is-locked .row-acts {
+    opacity: 1;
+}
+
 .search-note {
     margin: 0;
 }
@@ -694,6 +896,12 @@ export default {
 @media (max-width: 900px) {
     .assets-grid {
         grid-template-columns: minmax(0, 1fr);
+        height: auto;
+    }
+
+    /* 좁은 화면에서는 나란히 둘 수 없으니 각자 적당한 높이로 */
+    .panel {
+        max-height: 70vh;
     }
 
     /* 손가락으로는 hover가 없다 — 늘 보이게 둔다 */

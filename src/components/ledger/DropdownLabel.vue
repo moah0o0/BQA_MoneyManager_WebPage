@@ -155,6 +155,7 @@ export default {
     emptyMessage() {
       if (this.searchQuery.trim()) return '검색 결과가 없습니다'
       if (this.type === 'Mok' && !this.ledgerRecord?.hang) return '항을 먼저 고르세요'
+      if (this.type === 'Mok') return '고를 목이 없습니다 (잠근 목은 나오지 않습니다)'
       if (this.type === 'Saemok' && !this.ledgerRecord?.mok) return '목을 먼저 고르세요'
       return '고를 항목이 없습니다'
     },
@@ -176,7 +177,11 @@ export default {
 
       if (this.type == "Mok") {
         list = list.filter(asset => {
-          return this.ledgerRecord.hang && asset.expand.parent_hang.id === this.ledgerRecord.hang;
+          if (!this.ledgerRecord.hang) return false
+          if (asset.expand.parent_hang.id !== this.ledgerRecord.hang) return false
+          // 잠근 목은 새로 고를 수 없다. 이미 그 목으로 적힌 줄은 그대로 남는다
+          if (asset.lock) return false
+          return true
         });
       }
 
