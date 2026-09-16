@@ -1,97 +1,125 @@
 <template>
-<div class="header">
-    <div class="info none-select">
-
-        <!-- 모바일: 햄버거 메뉴 버튼 -->
-        <button class="mobile-menu-btn" @click="$emit('toggle-mobile-menu')">
-            <i :class="['bi', isMobileMenuOpen ? 'bi-x-lg' : 'bi-list']"></i>
-        </button>
+<header class="header">
+    <div class="info">
 
         <div class="service">
-            <span class="logo-text">모두의결산</span>
+            <!-- 모바일: 길잡이 여닫기 -->
+            <button
+                type="button"
+                class="mobile-menu-btn"
+                :aria-expanded="isMobileMenuOpen ? 'true' : 'false'"
+                :aria-label="isMobileMenuOpen ? '메뉴 닫기' : '메뉴 열기'"
+                aria-controls="main-nav"
+                @click="$emit('toggle-mobile-menu')"
+            >
+                <i :class="['bi', isMobileMenuOpen ? 'bi-x-lg' : 'bi-list']" aria-hidden="true"></i>
+            </button>
+
+            <span class="logo-mark" aria-hidden="true">₩</span>
+            <span class="logo-text none-select">모두의결산</span>
         </div>
 
         <div class="user">
 
             <div class="auth-info-display" v-if="loginStatus">
-                <span class="auth-user-name"> {{ organizationName }}</span>
-                <span class="auth-user-email"> {{ loginInfo.name }}님({{ permission }})</span>
-            </div>
-
-            <!-- 테마 토글 버튼 -->
-            <button class="theme-toggle-btn" @click="$emit('toggle-theme')" :title="theme === 'light' ? '다크모드로 전환' : '라이트모드로 전환'">
-                <i :class="['bi', theme === 'light' ? 'bi-moon-fill' : 'bi-sun-fill']"></i>
-            </button>
-
-            <div class="status">
-                <span :class="['button', loginStatus ? 'btn-logout' : 'btn-login']"
-                      @click="loginStatus ? Logout() : openModal()">
-                    <i :class="['bi', loginStatus ? 'bi-box-arrow-right' : 'bi-person-fill-lock']"></i>
-                    <span class="btn-text">{{ loginStatus ? '로그아웃' : '로그인' }}</span>
+                <span class="auth-user-name">{{ organizationName }}</span>
+                <span class="auth-user-email">
+                    {{ loginInfo.name }}님
+                    <span :class="['perm-badge', canEdit ? 'is-editor' : 'is-viewer']">{{ permission }}</span>
                 </span>
             </div>
 
-        </div>
-    </div>
-    
-    <div class="modal-backdrop" v-if="isModalOpen" @click.self="closeModal()">
-        <div class="login-modal">
-            <div class="modal-header">
-                <h2>
-                    <i class="bi bi-person-circle"></i> 
-                    <span>로그인</span>
-                </h2>
-                <button class="close-button" @click="closeModal()"><i class="bi bi-x-lg"></i></button>
-            </div>
-            
-            <div class="modal-body">
-                <p class="description">
-                    {{ organizationName }} DB에 접근하기 위해 로그인이 필요합니다
-                </p>
-                
-                <!-- 에러 메시지 표시 영역 -->
-                <div v-if="errorMessage" class="error-message">
-                    <i class="bi bi-exclamation-triangle-fill"></i> {{ errorMessage }}
-                </div>
+            <!-- 밝게/어둡게 -->
+            <button
+                type="button"
+                class="theme-toggle-btn"
+                :aria-label="theme === 'light' ? '어두운 화면으로 바꾸기' : '밝은 화면으로 바꾸기'"
+                :aria-pressed="theme === 'dark' ? 'true' : 'false'"
+                @click="$emit('toggle-theme')"
+            >
+                <i :class="['bi', theme === 'light' ? 'bi-moon-stars' : 'bi-sun']" aria-hidden="true"></i>
+            </button>
 
-                <!-- 1. 구글 로그인 영역 (유일한 로그인 수단) -->
-                <div>
-                    <span class="button btn-google-login modal-submit-button" @click="LoginWithGoogle">
-                        <i class="bi bi-google"></i> 구글로 로그인 
-                    </span>
-                </div>
-                
-            </div>
+            <button
+                type="button"
+                :class="['auth-btn', loginStatus ? 'btn-logout' : 'btn-login']"
+                @click="loginStatus ? Logout() : openModal()"
+            >
+                <i :class="['bi', loginStatus ? 'bi-box-arrow-right' : 'bi-person-fill-lock']" aria-hidden="true"></i>
+                <span class="btn-text">{{ loginStatus ? '로그아웃' : '로그인' }}</span>
+                <span class="sr-only">{{ loginStatus ? '로그아웃' : '로그인' }}</span>
+            </button>
+
         </div>
     </div>
-    </div>
+
+    <AppModal
+        v-if="isModalOpen"
+        title="로그인"
+        icon="bi-person-circle"
+        size="sm"
+        :description="`${organizationName} 자료를 보려면 로그인이 필요합니다.`"
+        initial-focus=".btn-google-login"
+        @close="closeModal"
+    >
+        <!-- 잘못된 일은 소리 내어 알린다. 조용히 색만 바뀌면 화면을 못 보는 사람은 모른다 -->
+        <p v-if="errorMessage" class="notice notice-danger login-error" role="alert">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <span>{{ errorMessage }}</span>
+        </p>
+
+        <button type="button" class="btn btn-lg btn-google-login" @click="LoginWithGoogle">
+            <i class="bi bi-google" aria-hidden="true"></i>
+            구글로 로그인
+        </button>
+
+        <p class="hint login-hint">
+            구글 계정 창이 새로 열립니다. 창이 뜨지 않으면 팝업 차단을 풀어 주세요.
+        </p>
+    </AppModal>
+</header>
 </template>
 
 <script>
 import PocketBase from 'pocketbase';
+import AppModal from './AppModal.vue';
+
 // PocketBase SDK 초기화 (전역 변수 __POCKETBASE_API_BASE_URL__ 사용)
 const pb = new PocketBase(typeof __POCKETBASE_API_BASE_URL__ !== 'undefined' ? __POCKETBASE_API_BASE_URL__ : 'http://127.0.0.1:8090');
 
 export default {
+    components: { AppModal },
+
     props: ['loginStatus', 'loginInfo', 'organizationName', 'theme', 'isMobileMenuOpen'],
-    
+
+    emits: ['update', 'toggle-theme', 'toggle-mobile-menu'],
+
     data(){
         return {
-            isModalOpen: false, 
+            isModalOpen: false,
             errorMessage: '', // 에러 메시지
         }
     },
+
     computed: {
+        canEdit() {
+            const p = this.loginInfo?.permission
+            return p === 'admin' || p === 'editor'
+        },
+
         permission() {
-            switch(this.loginInfo.permission){
+            switch(this.loginInfo?.permission){
                 case "viewer":
-                    return "일부권한 : 편집 불가"
+                    return "읽기 전용"
                 case "editor":
-                    return "전체권한"
+                case "admin":
+                    return "편집 가능"
+                default:
+                    return "권한 확인 중"
             }
-            
         }
     },
+
     methods: {
         // 모달 열기/닫기
         openModal() {
@@ -100,7 +128,7 @@ export default {
                 this.errorMessage = '';
             }
         },
-        
+
         closeModal() {
             this.isModalOpen = false;
             this.errorMessage = '';
@@ -111,8 +139,8 @@ export default {
             this.errorMessage = '';
             try {
                 // PocketBase OAuth2 인증 시작
-                const authData = await pb.collection('users').authWithOAuth2({ provider: 'google' });
-                
+                await pb.collection('users').authWithOAuth2({ provider: 'google' });
+
                 // OAuth2 성공 후 토큰 확인
                 if (pb.authStore.isValid) {
                     // 로그인 성공 처리
@@ -122,7 +150,7 @@ export default {
 
             } catch (error) {
                 // 사용자가 팝업을 닫거나, 인증에 실패했을 때 에러 처리
-                this.errorMessage = "Google 로그인에 실패했거나 취소되었습니다.";
+                this.errorMessage = "구글 로그인에 실패했거나 취소되었습니다. 다시 시도해 주세요.";
                 console.error("구글 로그인 오류:", error);
             }
         },
@@ -135,404 +163,271 @@ export default {
             try {
                 pb.authStore.clear()
                 this.$emit('update')
-                console.log("로그아웃에 성공했습니다.") 
             } catch(error) {
                 this.errorMessage = "로그아웃에 실패했습니다: " + error.message;
             }
         },
     },
-
-    watch: {
-        isModalOpen(isOpen) {
-            document.body.style.overflow = isOpen ? 'hidden' : '';
-            if (isOpen) {
-                // 모달이 열릴 때 상태 초기화
-                this.errorMessage = '';
-            }
-        }
-    },
 }
 </script>
 
 <style scoped>
-/* -------------------- 기본 스타일 -------------------- */
-.none-select {
-    user-select: none;
-    -moz-user-select: none;
-    -webkit-user-drag: none;
-}
-
+/* -------------------- 머리띠 -------------------- */
 .info {
     height: 100%;
     width: 100%;
-    box-sizing: border-box;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 0;
-}
-
-/* 모바일 메뉴 버튼 */
-.mobile-menu-btn {
-    display: none;
-    background: none;
-    border: none;
-    font-size: 24px;
-    color: var(--text-primary);
-    cursor: pointer;
-    padding: 8px;
-    margin-right: 10px;
-    border-radius: var(--border-radius-md);
-    transition: background-color var(--duration-200) var(--ease-out);
-}
-
-.mobile-menu-btn:hover {
-    background-color: var(--bg-tertiary);
+    gap: var(--spacing-4);
 }
 
 .service {
     display: flex;
     align-items: center;
-    gap: 15px;
-    flex: 4;
+    gap: var(--spacing-2);
+    min-width: 0;
+}
+
+.logo-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: var(--border-radius-md);
+    /* 그러데이션은 이 한 곳에만 쓴다 — 표지 구실을 하는 자리 */
+    background: var(--gradient);
+    color: #fff;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
 }
 
 .logo-text {
-    font-size: 24px;
-    font-weight: 800;
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-bold);
     color: var(--text-primary);
     white-space: nowrap;
 }
 
+/* 길잡이 여닫기 */
+.mobile-menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-left: calc(var(--spacing-2) * -1);
+    background: none;
+    border: none;
+    border-radius: var(--border-radius-md);
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    transition: background-color var(--transition-fast);
+}
+
+.mobile-menu-btn:hover {
+    background-color: var(--bg-hover);
+}
+
 .user {
     display: flex;
-    flex-direction: row;
-    justify-content: flex-end;
     align-items: center;
-    gap: 16px;
-    flex: 1;
-    min-width: 200px;
+    justify-content: flex-end;
+    gap: var(--spacing-3);
+    min-width: 0;
 }
 
 .auth-info-display {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 2px;
-    flex-shrink: 1;
+    line-height: var(--line-height-tight);
+    min-width: 0;
 }
 
 .auth-user-name {
-    font-weight: 700;
-    font-size: 16px;
+    font-weight: var(--font-weight-bold);
+    font-size: var(--text-base);
     color: var(--text-primary);
     white-space: nowrap;
 }
 
 .auth-user-email {
-    font-weight: 500;
-    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+    margin-top: 2px;
+    font-size: var(--text-xs);
     color: var(--text-secondary);
     white-space: nowrap;
 }
 
-/* 테마 토글 버튼 */
+/*
+    권한은 배지로 또렷하게 보여 준다.
+    '일부권한 : 편집 불가'처럼 길게 적어 두면 읽히지 않는다 —
+    편집이 되는지 안 되는지 한눈에 알아야 한다.
+*/
+.perm-badge {
+    padding: 1px var(--spacing-2);
+    border-radius: var(--border-radius-full);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.perm-badge.is-editor {
+    background: var(--success-50);
+    color: var(--success-600);
+}
+
+.perm-badge.is-viewer {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+/* 밝게/어둡게 */
 .theme-toggle-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
-    background: var(--bg-tertiary);
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    background: transparent;
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-full);
-    cursor: pointer;
-    font-size: 18px;
-    color: var(--text-primary);
-    transition: all var(--duration-200) var(--ease-out);
+    font-size: var(--text-md);
+    color: var(--text-secondary);
+    transition: background-color var(--transition-fast), color var(--transition-fast),
+        border-color var(--transition-fast);
 }
 
 .theme-toggle-btn:hover {
-    background: var(--primary-100);
-    border-color: var(--primary-300);
-    color: var(--primary-600);
-    transform: rotate(15deg);
-}
-
-.status {
-    flex-shrink: 0;
-}
-
-.status > .button {
-    font-weight: 700;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 8px 16px;
-    gap: 8px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: var(--border-radius-lg);
-    transition: all var(--duration-200) var(--ease-out);
-}
-
-.status > .btn-login {
-    color: white;
-    background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
-    box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
-}
-
-.status > .btn-login:hover {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.4);
-}
-
-.status > .btn-logout {
+    background: var(--bg-hover);
+    border-color: var(--border-color-strong);
     color: var(--text-primary);
-    background-color: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
 }
 
-.status > .btn-logout:hover {
-    background-color: var(--bg-secondary);
-    border-color: var(--text-secondary);
+.auth-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+    flex-shrink: 0;
+    min-height: 36px;
+    padding: 0 var(--spacing-4);
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-md);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-/* 반응형: 태블릿 */
-@media (max-width: 768px) {
+.auth-btn .sr-only {
+    /* 글자가 보일 때는 두 번 읽히지 않게 한다 */
+    display: none;
+}
+
+.btn-login {
+    color: #fff;
+    background: var(--primary-600);
+    border-color: var(--primary-600);
+}
+
+.btn-login:hover {
+    background: var(--primary-700);
+    border-color: var(--primary-700);
+}
+
+.btn-logout {
+    color: var(--text-primary);
+    background-color: var(--bg-primary);
+    border-color: var(--border-color-strong);
+}
+
+.btn-logout:hover {
+    background-color: var(--bg-hover);
+}
+
+/* -------------------- 로그인 창 -------------------- */
+.login-error {
+    margin: 0 0 var(--spacing-4);
+}
+
+.btn-google-login {
+    width: 100%;
+    background: #4285f4;
+    border-color: #4285f4;
+    color: #fff;
+    font-size: var(--text-md);
+}
+
+.btn-google-login:hover {
+    background: #3367d6;
+    border-color: #3367d6;
+}
+
+.login-hint {
+    margin-top: var(--spacing-3);
+    text-align: center;
+}
+
+/* -------------------- 반응형 -------------------- */
+@media (max-width: 1024px) {
     .mobile-menu-btn {
         display: flex;
     }
+}
 
+@media (max-width: 768px) {
     .auth-info-display {
         display: none;
     }
 
     .user {
-        min-width: auto;
-        gap: 12px;
+        gap: var(--spacing-2);
     }
 
-    .status > .button .btn-text {
+    .auth-btn .btn-text {
         display: none;
     }
 
-    .status > .button {
-        padding: 10px;
-    }
-}
-
-/* 반응형: 모바일 */
-@media (max-width: 640px) {
-    .info {
-        padding: 12px 0;
+    .auth-btn .sr-only {
+        display: initial;
     }
 
-    .logo-text {
-        font-size: 20px;
+    .auth-btn {
+        width: 40px;
+        min-height: 40px;
+        padding: 0;
     }
 
     .theme-toggle-btn {
-        width: 36px;
-        height: 36px;
-        font-size: 16px;
+        width: 40px;
+        height: 40px;
+    }
+
+    .logo-text {
+        font-size: var(--text-md);
     }
 }
 
-
-/* -------------------- 모달 디자인 -------------------- */
-.modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-    background-color: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    animation: fadeIn var(--duration-200) var(--ease-out);
+/* -------------------- 다크모드 -------------------- */
+[data-theme="dark"] .perm-badge.is-editor {
+    background: rgb(34 197 94 / 0.16);
+    color: var(--success-400);
 }
 
-.login-modal {
-    background: var(--bg-primary);
-    padding: 32px 40px;
-    border-radius: var(--border-radius-xl);
-    box-shadow: var(--shadow-xl);
-    width: 400px;
-    max-width: 90%;
-    color: var(--text-primary);
-    animation: slideUp var(--duration-300) var(--ease-out);
+[data-theme="dark"] .btn-login {
+    background: var(--primary-500);
+    border-color: var(--primary-500);
 }
 
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 16px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h2 {
-    font-size: 24px;
-    font-weight: 800;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.close-button {
-    background: var(--bg-tertiary);
-    border: none;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--border-radius-full);
-    font-size: 16px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all var(--duration-200) var(--ease-out);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.close-button:hover {
-    background: var(--danger-100);
-    color: var(--danger-600);
-}
-
-.modal-body {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.modal-body .description {
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-    line-height: 1.6;
-    text-align: left;
-}
-
-.modal-submit-button {
-    margin-top: 8px;
-    width: 100%;
-    height: 52px;
-    font-size: 16px;
-    font-weight: 700;
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-md);
-    transition: all var(--duration-200) var(--ease-out);
-}
-
-.modal-submit-button:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
-
-.modal-submit-button:active {
-    transform: translateY(0);
-}
-
-/* 구글 로그인 버튼 스타일 */
-.btn-google-login {
-    background: linear-gradient(135deg, #4285f4, #357ae8);
-    color: white;
-    margin-top: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-}
-
-.btn-google-login:hover {
-    background: linear-gradient(135deg, #357ae8, #2a6bc7);
-}
-
-/* 에러 메시지 스타일 */
-.error-message {
-    padding: 14px 16px;
-    background-color: var(--danger-50);
-    border: 1px solid var(--danger-200);
-    color: var(--danger-700);
-    border-radius: var(--border-radius-lg);
-    font-size: 14px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-/* 반응형: 모바일 */
-@media (max-width: 640px) {
-    .login-modal {
-        padding: 24px;
-        width: 100%;
-        max-width: calc(100% - 32px);
-    }
-
-    .modal-header h2 {
-        font-size: 20px;
-    }
-}
-
-/* -------------------- 다크모드 스타일 -------------------- */
-:deep([data-theme="dark"]) .theme-toggle-btn:hover,
-[data-theme="dark"] .theme-toggle-btn:hover {
-    background: var(--primary-900);
-    border-color: var(--primary-700);
-    color: var(--primary-400);
-}
-
-:deep([data-theme="dark"]) .modal-backdrop,
-[data-theme="dark"] .modal-backdrop {
-    background-color: rgba(0, 0, 0, 0.8);
-}
-
-:deep([data-theme="dark"]) .login-modal,
-[data-theme="dark"] .login-modal {
-    background: var(--bg-secondary);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-}
-
-:deep([data-theme="dark"]) .modal-header,
-[data-theme="dark"] .modal-header {
-    border-bottom-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .close-button,
-[data-theme="dark"] .close-button {
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .close-button:hover,
-[data-theme="dark"] .close-button:hover {
-    background: var(--danger-900);
-    color: var(--danger-400);
-}
-
-:deep([data-theme="dark"]) .error-message,
-[data-theme="dark"] .error-message {
-    background-color: var(--danger-900);
-    border-color: var(--danger-700);
-    color: var(--danger-300);
-}
-
-:deep([data-theme="dark"]) .btn-google-login,
-[data-theme="dark"] .btn-google-login {
-    background: linear-gradient(135deg, #3b7dd8, #2a5ba8);
-}
-
-:deep([data-theme="dark"]) .btn-google-login:hover,
-[data-theme="dark"] .btn-google-login:hover {
-    background: linear-gradient(135deg, #4a8ae6, #3b7dd8);
+[data-theme="dark"] .btn-login:hover {
+    background: var(--primary-400);
+    border-color: var(--primary-400);
+    color: var(--primary-950);
 }
 </style>

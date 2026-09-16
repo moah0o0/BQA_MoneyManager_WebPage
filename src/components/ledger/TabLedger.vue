@@ -1,22 +1,12 @@
 <template>
-    <div class="main-content">
+    <div class="tab-root">
         <template v-if="loginStatus == true">
-            <div class="toolbar none-select">
-                <div class="filter">
-                    <div class="date-filter" v-if="filterDateList" v-for="[year, months] in Object.entries(filterDateList)">
-                        <div class="year">{{ year }}년</div>
-                        <div :class="filterYear == year && filterMonth == month ? 'month active' : 'month'" 
-                                v-for="month in months"
-                                @click="changeFilter(year, month)">
-                            {{ month }}월
-                        </div>
-                        <div :class="filterYear == year && filterMonth == 'all' ? 'month active' : 'month'" 
-                                @click="changeFilter(year, 'all')">
-                            전체
-                        </div>
-                    </div>
+            <div class="page-head">
+                <div>
+                    <h1 class="page-title">장부</h1>
+                    <p class="page-desc">은행에서 불러온 거래에 항·목·세목과 내용을 적습니다.</p>
                 </div>
-                <div class="action" v-if="effectiveCanEdit">
+                <div class="acts" v-if="effectiveCanEdit">
                     <AddTransactionModal
                         ref="addTransactionModal"
                         @refresh="refreshLedger"
@@ -24,8 +14,40 @@
                         :filter-end-date=filterEndDate>
                     </AddTransactionModal>
                 </div>
-                <div class="closed-period-notice" v-else-if="canEdit && isCurrentPeriodClosed">
-                    <i class="bi bi-lock-fill"></i> 마감된 회계기간입니다
+                <p class="notice notice-warning closed-period-notice" v-else-if="canEdit && isCurrentPeriodClosed" role="status">
+                    <i class="bi bi-lock-fill" aria-hidden="true"></i>
+                    마감된 회계기간이라 고칠 수 없습니다
+                </p>
+            </div>
+
+            <!--
+                기간 고르기.
+                예전에는 눌리는 자리가 div라 키보드로는 닿지 않았고,
+                보고 있는 달도 글자 색으로만 알렸다.
+            -->
+            <div class="toolbar none-select">
+                <div class="filter" role="group" aria-label="기간 고르기">
+                    <div class="date-filter" v-for="[year, months] in Object.entries(filterDateList)" :key="year">
+                        <span class="year num">{{ year }}</span>
+                        <button
+                            v-for="month in months"
+                            :key="month"
+                            type="button"
+                            class="month num"
+                            :class="{ active: filterYear == year && filterMonth == month }"
+                            :aria-pressed="filterYear == year && filterMonth == month ? 'true' : 'false'"
+                            :aria-label="`${year}년 ${month}월`"
+                            @click="changeFilter(Number(year), month)"
+                        >{{ month }}</button>
+                        <button
+                            type="button"
+                            class="month is-all"
+                            :class="{ active: filterYear == year && filterMonth == 'all' }"
+                            :aria-pressed="filterYear == year && filterMonth == 'all' ? 'true' : 'false'"
+                            :aria-label="`${year}년 전체`"
+                            @click="changeFilter(Number(year), 'all')"
+                        >전체</button>
+                    </div>
                 </div>
             </div>
 
@@ -37,11 +59,6 @@
                 :filter-end-date=filterEndDate
                 :canEdit="effectiveCanEdit">
             </LedgerTable>
-        </template>
-
-        <template v-if="loginStatus == false">
-            <div class="toolbar disable"></div>
-            <div class="content disable"></div>
         </template>
     </div>
 </template>
@@ -238,152 +255,105 @@ export default {
 </script>
 
 <style scoped>
-.none-select {
-  user-select: none;
-  -moz-user-select: none;
-  -webkit-user-drag: none;
-}
-
-.main-content {
+.tab-root {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    margin-bottom:50px;
-}
-
-.toolbar {
-    width: 100%;
-    min-height: 50px;
-    
-    display: flex;
-    flex-direction: row;
-}
-
-.toolbar > .filter {
-    flex:1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 15px;
-}
-
-.toolbar > .filter > .date-filter { 
-    display: flex;
-    flex-direction: row;
-    gap:2px;
-    align-items: start; 
-}
-
-.toolbar > .filter > .date-filter > .year {
-    font-size: 15px;
-    font-weight: 700;
-
-    width: 65px;
-    padding: 4px 0;
-    border-radius: 6px;
-
-    color: var(--strong-color);
-
-    text-align: center;
-}
-
-.toolbar > .filter > .date-filter > .month {
-    cursor: pointer;
-    font-size: 15px;
-    width: 45px;
-    padding: 4px 0;
-    text-align: center;
-
-    border-radius: 6px;
-    background-color: transparent;
-    transition: all 0.2s ease;
-}
-
-.toolbar > .filter > .date-filter > .month:hover {
-    background-color: var(--light-color);
-    border-color: var(--strong-color);
-    color: var(--strong-color);
-}
-
-.toolbar > .filter > .date-filter > .month.active {
-    color: var(--primary-color);
-    font-weight: 600;
-}
-
-.toolbar > .action {
-    flex:1;
-    display: flex;
-    flex-direction: column;
-    align-items: end;
+    gap: var(--spacing-4);
 }
 
 .closed-period-notice {
+    margin: 0;
+}
+
+.toolbar {
     display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+}
+
+.filter {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+}
+
+.date-filter {
+    display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    background: var(--danger-50);
-    color: var(--danger-600);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
+    gap: var(--spacing-1);
+    flex-wrap: wrap;
 }
 
-
-.content {
-    width: 100%;
-    min-height: 730px;
+.date-filter > .year {
+    min-width: 48px;
+    padding-right: var(--spacing-2);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-secondary);
 }
 
-.toolbar.disable,
-.content.disable {
-    background-color: var(--bg-primary);
-    box-shadow: var(--shadow-sm);
+.date-filter > .year::after {
+    content: '년';
+    margin-left: 1px;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-muted);
+}
+
+.month {
+    min-width: 38px;
+    min-height: 32px;
+    padding: 0 var(--spacing-2);
+    border: 1px solid transparent;
     border-radius: var(--border-radius-md);
+    background-color: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-/* 다크모드 */
-[data-theme="dark"] .toolbar > .filter > .date-filter > .year {
+.month.is-all {
+    min-width: 46px;
+}
+
+.month:hover {
+    background-color: var(--bg-hover);
     color: var(--text-primary);
 }
 
-[data-theme="dark"] .toolbar > .filter > .date-filter > .month:hover {
-    background-color: var(--bg-tertiary);
-    color: var(--text-primary);
+/* 보고 있는 달은 칠해서 알린다 — 글자 색만 바꾸면 눈에 걸리지 않는다 */
+.month.active {
+    background-color: var(--primary-600);
+    border-color: var(--primary-600);
+    color: #fff;
+    font-weight: var(--font-weight-bold);
 }
 
-[data-theme="dark"] .toolbar > .filter > .date-filter > .month.active {
-    color: var(--primary-400);
+.month.active:hover {
+    background-color: var(--primary-700);
 }
 
-[data-theme="dark"] .closed-period-notice {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--danger-400);
-}
-
-/* 모바일 반응형 */
 @media (max-width: 768px) {
-    .toolbar {
-        flex-direction: column;
-        gap: 15px;
+    .date-filter > .year {
+        width: 100%;
+        min-width: auto;
     }
 
-    .toolbar > .filter > .date-filter {
-        flex-wrap: wrap;
+    .month {
+        min-width: 40px;
+        min-height: 38px;
     }
+}
 
-    .toolbar > .filter > .date-filter > .year {
-        width: 55px;
-        font-size: 14px;
-    }
+[data-theme="dark"] .month.active {
+    background-color: var(--primary-500);
+    border-color: var(--primary-500);
+}
 
-    .toolbar > .filter > .date-filter > .month {
-        width: 40px;
-        font-size: 14px;
-    }
-
-    .toolbar > .action {
-        align-items: stretch;
-    }
+[data-theme="dark"] .month.active:hover {
+    background-color: var(--primary-400);
+    color: var(--primary-950);
 }
 </style>

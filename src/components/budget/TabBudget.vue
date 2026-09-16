@@ -1,51 +1,75 @@
 <template>
-    <div class="main-content none-select">
+    <div class="tab-root none-select">
         <template v-if="loginStatus">
+            <div class="page-head">
+                <div>
+                    <h1 class="page-title">예산</h1>
+                    <p class="page-desc">회계기간을 정하고, 그 기간에 쓸 예산을 항·목·세목별로 적습니다.</p>
+                </div>
+            </div>
+
             <!-- 기간 관리 섹션 -->
             <div class="section">
                 <div class="section-header">
                     <h2 class="section-title">회계기간</h2>
-                    <button v-if="canEdit" class="btn-add" @click="openPeriodModal(null)">
-                        <i class="bi bi-plus-circle"></i> 기간 추가
+                    <button v-if="canEdit" type="button" class="btn btn-primary btn-sm" @click="openPeriodModal(null)">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i> 기간 추가
                     </button>
                 </div>
 
-                <div class="period-list">
-                    <div
+                <!--
+                    카드 안에 또 단추를 넣을 수는 없다(단추 안의 단추는 HTML이 아니다).
+                    고르는 단추와 손보는 단추를 나란히 둔다.
+                -->
+                <ul class="period-list">
+                    <li
                         v-for="period in sortedPeriods"
                         :key="period.id"
                         :class="['period-card', { active: selectedPeriod?.id === period.id, closed: period.is_closed }]"
-                        @click="selectPeriod(period)"
                     >
-                        <div class="period-info">
+                        <button
+                            type="button"
+                            class="period-select"
+                            :aria-pressed="selectedPeriod?.id === period.id ? 'true' : 'false'"
+                            @click="selectPeriod(period)"
+                        >
                             <span class="period-name">
                                 {{ period.name }}
-                                <span v-if="period.is_closed" class="closed-badge">마감</span>
+                                <span v-if="period.is_closed" class="closed-badge">
+                                    <i class="bi bi-lock-fill" aria-hidden="true"></i> 마감
+                                </span>
                             </span>
-                            <span class="period-date">
+                            <span class="period-date num">
                                 {{ formatDate(period.start_date) }} ~ {{ formatDate(period.end_date) }}
                             </span>
-                        </div>
+                        </button>
+
                         <div class="period-actions" v-if="canEdit">
                             <button
+                                type="button"
                                 :class="['btn-icon', { 'closed-toggle': period.is_closed }]"
-                                @click.stop="togglePeriodClose(period)"
-                                :title="period.is_closed ? '마감 해제' : '마감 처리'"
+                                @click="togglePeriodClose(period)"
+                                :title="period.is_closed ? '마감 풀기' : '마감하기'"
+                                :aria-label="`${period.name} ${period.is_closed ? '마감 풀기' : '마감하기'}`"
                             >
-                                <i :class="period.is_closed ? 'bi bi-unlock' : 'bi bi-lock'"></i>
+                                <i :class="period.is_closed ? 'bi bi-unlock' : 'bi bi-lock'" aria-hidden="true"></i>
                             </button>
-                            <button class="btn-icon" @click.stop="openPeriodModal(period)" title="수정" :disabled="period.is_closed">
-                                <i class="bi bi-pencil"></i>
+                            <button type="button" class="btn-icon" @click="openPeriodModal(period)"
+                                :title="period.is_closed ? '마감된 기간은 고칠 수 없습니다' : '고치기'"
+                                :aria-label="`${period.name} 고치기`" :disabled="period.is_closed">
+                                <i class="bi bi-pencil" aria-hidden="true"></i>
                             </button>
-                            <button class="btn-icon danger" @click.stop="deletePeriod(period.id)" title="삭제" :disabled="period.is_closed">
-                                <i class="bi bi-trash"></i>
+                            <button type="button" class="btn-icon danger" @click="deletePeriod(period.id)"
+                                :title="period.is_closed ? '마감된 기간은 지울 수 없습니다' : '지우기'"
+                                :aria-label="`${period.name} 지우기`" :disabled="period.is_closed">
+                                <i class="bi bi-trash" aria-hidden="true"></i>
                             </button>
                         </div>
-                    </div>
-                    <div v-if="PERIODS.length === 0" class="empty-state">
-                        등록된 회계기간이 없습니다.
-                    </div>
-                </div>
+                    </li>
+                    <li v-if="PERIODS.length === 0" class="empty">
+                        아직 정한 회계기간이 없습니다. 먼저 기간을 하나 더해 주세요.
+                    </li>
+                </ul>
             </div>
 
             <!-- 예산 관리 섹션 -->
@@ -57,22 +81,25 @@
                             (<span class="income-text">수입 +{{ formatMoney(totalIncomeBudget) }}원</span> / <span class="expense-text">지출 -{{ formatMoney(totalExpenseBudget) }}원</span>)
                         </span>
                     </h2>
-                    <button v-if="canEdit && !selectedPeriod.is_closed" class="btn-add" @click="openBudgetModal(null)">
-                        <i class="bi bi-plus-circle"></i> 예산 항목 추가
+                    <button v-if="canEdit && !selectedPeriod.is_closed" type="button" class="btn btn-primary btn-sm" @click="openBudgetModal(null)">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i> 예산 항목 추가
                     </button>
                     <span v-if="selectedPeriod.is_closed" class="closed-notice">
-                        <i class="bi bi-lock-fill"></i> 마감된 기간입니다
+                        <i class="bi bi-lock-fill" aria-hidden="true"></i> 마감된 기간입니다
                     </span>
                 </div>
 
                 <div class="budget-table-wrapper">
                     <table class="budget-table hierarchical">
+                        <caption class="sr-only">{{ selectedPeriod.name }} 예산을 항·목·세목 차례로 보여 줍니다.</caption>
                         <thead>
                             <tr>
-                                <th style="width: 46%">분류</th>
-                                <th style="width: 17%">수입예산</th>
-                                <th style="width: 17%">지출예산</th>
-                                <th style="width: 16%" v-if="canEdit && !selectedPeriod.is_closed">관리</th>
+                                <th scope="col" style="width: 46%">분류</th>
+                                <th scope="col" style="width: 17%" class="budget-amount">수입예산</th>
+                                <th scope="col" style="width: 17%" class="budget-amount">지출예산</th>
+                                <th scope="col" style="width: 16%" v-if="canEdit && !selectedPeriod.is_closed">
+                                    <span class="sr-only">관리</span>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -96,29 +123,31 @@
                                 <!-- 세목 항목 -->
                                 <tr v-else-if="row.type === 'item'" class="item-row">
                                     <td class="item-cell">{{ getAssetLabel('saemok', row.saemok) }}</td>
-                                    <td class="budget-amount income">{{ row.income_budget > 0 ? '+' : '' }}{{ formatMoney(row.income_budget) }}원</td>
-                                    <td class="budget-amount expense">{{ row.expense_budget > 0 ? '-' : '' }}{{ formatMoney(row.expense_budget) }}원</td>
+                                    <td class="budget-amount income num" :class="{ 'is-zero': !row.income_budget }">{{ row.income_budget > 0 ? '+' : '' }}{{ formatMoney(row.income_budget) }}원</td>
+                                    <td class="budget-amount expense num" :class="{ 'is-zero': !row.expense_budget }">{{ row.expense_budget > 0 ? '−' : '' }}{{ formatMoney(row.expense_budget) }}원</td>
                                     <td v-if="canEdit && !selectedPeriod.is_closed" class="action-cell">
-                                        <button class="btn-icon" @click="openBudgetModal(row)" title="수정">
-                                            <i class="bi bi-pencil"></i>
+                                        <button type="button" class="btn-icon" @click="openBudgetModal(row)"
+                                            title="고치기" :aria-label="`${getAssetLabel('saemok', row.saemok)} 예산 고치기`">
+                                            <i class="bi bi-pencil" aria-hidden="true"></i>
                                         </button>
-                                        <button class="btn-icon danger" @click="deleteBudget(row.id)" title="삭제">
-                                            <i class="bi bi-trash"></i>
+                                        <button type="button" class="btn-icon danger" @click="deleteBudget(row.id)"
+                                            title="지우기" :aria-label="`${getAssetLabel('saemok', row.saemok)} 예산 지우기`">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
                                         </button>
                                     </td>
                                 </tr>
                                 <!-- 목 소계 -->
                                 <tr v-else-if="row.type === 'mok-subtotal'" class="mok-subtotal-row">
                                     <td class="subtotal-label mok-subtotal-label">{{ row.mokLabel }} 소계</td>
-                                    <td class="budget-amount income subtotal-amount">{{ row.incomeSum > 0 ? '+' : '' }}{{ formatMoney(row.incomeSum) }}원</td>
-                                    <td class="budget-amount expense subtotal-amount">{{ row.expenseSum > 0 ? '-' : '' }}{{ formatMoney(row.expenseSum) }}원</td>
+                                    <td class="budget-amount income subtotal-amount num" :class="{ 'is-zero': !row.incomeSum }">{{ row.incomeSum > 0 ? '+' : '' }}{{ formatMoney(row.incomeSum) }}원</td>
+                                    <td class="budget-amount expense subtotal-amount num" :class="{ 'is-zero': !row.expenseSum }">{{ row.expenseSum > 0 ? '−' : '' }}{{ formatMoney(row.expenseSum) }}원</td>
                                     <td v-if="canEdit && !selectedPeriod.is_closed"></td>
                                 </tr>
                                 <!-- 항 소계 -->
                                 <tr v-else-if="row.type === 'hang-subtotal'" class="hang-subtotal-row">
                                     <td class="subtotal-label hang-subtotal-label">{{ row.hangLabel }} 합계</td>
-                                    <td class="budget-amount income subtotal-amount hang-subtotal-amount">{{ row.incomeSum > 0 ? '+' : '' }}{{ formatMoney(row.incomeSum) }}원</td>
-                                    <td class="budget-amount expense subtotal-amount hang-subtotal-amount">{{ row.expenseSum > 0 ? '-' : '' }}{{ formatMoney(row.expenseSum) }}원</td>
+                                    <td class="budget-amount income subtotal-amount hang-subtotal-amount num" :class="{ 'is-zero': !row.incomeSum }">{{ row.incomeSum > 0 ? '+' : '' }}{{ formatMoney(row.incomeSum) }}원</td>
+                                    <td class="budget-amount expense subtotal-amount hang-subtotal-amount num" :class="{ 'is-zero': !row.expenseSum }">{{ row.expenseSum > 0 ? '−' : '' }}{{ formatMoney(row.expenseSum) }}원</td>
                                     <td v-if="canEdit && !selectedPeriod.is_closed"></td>
                                 </tr>
                             </template>
@@ -131,18 +160,18 @@
                         <tfoot v-if="BUDGETS.length > 0">
                             <tr class="total-row">
                                 <th>총 합계</th>
-                                <th class="budget-amount income">+{{ formatMoney(totalIncomeBudget) }}원</th>
-                                <th class="budget-amount expense">-{{ formatMoney(totalExpenseBudget) }}원</th>
-                                <th v-if="canEdit && !selectedPeriod.is_closed"></th>
+                                <th scope="row" class="budget-amount income num">+{{ formatMoney(totalIncomeBudget) }}원</th>
+                                <th class="budget-amount expense num">−{{ formatMoney(totalExpenseBudget) }}원</th>
+                                <td v-if="canEdit && !selectedPeriod.is_closed"></td>
                             </tr>
                         </tfoot>
                     </table>
                 </div>
             </div>
 
-            <div v-else class="empty-state-large">
-                <i class="bi bi-calendar3"></i>
-                <p>회계기간을 선택하세요</p>
+            <div v-else class="empty-state">
+                <i class="bi bi-calendar3" aria-hidden="true"></i>
+                <p>위에서 회계기간을 하나 고르면 그 기간의 예산이 보입니다.</p>
             </div>
         </template>
 
@@ -150,114 +179,125 @@
             <div class="content disable"></div>
         </template>
 
-        <!-- 기간 모달 -->
-        <div class="modal-overlay" v-if="periodModal.isOpen" @click.self="closePeriodModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>{{ periodModal.data ? '기간 수정' : '기간 추가' }}</h3>
-                    <button class="close-btn" @click="closePeriodModal"><i class="bi bi-x-lg"></i></button>
+        <!-- 기간 창 -->
+        <AppModal
+            v-if="periodModal.isOpen"
+            :title="periodModal.data ? '기간 고치기' : '기간 추가'"
+            icon="bi-calendar-range"
+            description="장부와 보고서를 묶는 단위입니다. 보통 한 해나 반기로 잡습니다."
+            size="sm"
+            initial-focus="input"
+            @close="closePeriodModal"
+        >
+            <div class="form-group">
+                <label for="period-name">기간 이름</label>
+                <input id="period-name" type="text" v-model="periodForm.name" placeholder="예: 2025년 1분기" />
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="period-start">시작일</label>
+                    <input id="period-start" type="date" v-model="periodForm.start_date" />
                 </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>기간 이름</label>
-                        <input type="text" v-model="periodForm.name" placeholder="예: 2025년 1분기" />
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>시작일</label>
-                            <input type="date" v-model="periodForm.start_date" />
-                        </div>
-                        <div class="form-group">
-                            <label>종료일</label>
-                            <input type="date" v-model="periodForm.end_date" />
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" @click="closePeriodModal">취소</button>
-                    <button class="btn-primary" @click="savePeriod">저장</button>
+                <div class="form-group">
+                    <label for="period-end">종료일</label>
+                    <input id="period-end" type="date" v-model="periodForm.end_date" />
                 </div>
             </div>
-        </div>
 
-        <!-- 예산 항목 모달 -->
-        <div class="modal-overlay" v-if="budgetModal.isOpen" @click.self="closeBudgetModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>{{ budgetModal.data ? '예산 항목 수정' : '예산 항목 추가' }}</h3>
-                    <button class="close-btn" @click="closeBudgetModal"><i class="bi bi-x-lg"></i></button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>항 <span class="required">*</span></label>
-                        <select v-model="budgetForm.hang" @change="onHangChange">
-                            <option value="">선택하세요</option>
-                            <option v-for="hang in ASSETS_HANG" :key="hang.id" :value="hang.id">
-                                {{ hang.label }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>목 <span class="required">*</span></label>
-                        <select v-model="budgetForm.mok" @change="onMokChange" :disabled="!budgetForm.hang">
-                            <option value="">선택하세요</option>
-                            <option v-for="mok in filteredMoks" :key="mok.id" :value="mok.id">
-                                {{ mok.label }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>세목 <span class="required">*</span></label>
-                        <select v-model="budgetForm.saemok" :disabled="!budgetForm.mok">
-                            <option value="">선택하세요</option>
-                            <option v-for="saemok in filteredSaemoks" :key="saemok.id" :value="saemok.id">
-                                {{ saemok.label }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>수입예산 <span class="income-label">(+)</span></label>
-                            <div class="budget-input-wrapper income">
-                                <span class="budget-prefix">+</span>
-                                <input
-                                    type="text"
-                                    :value="formatInputValue(budgetForm.income_budget)"
-                                    @input="budgetForm.income_budget = parseInputValue($event.target.value)"
-                                    placeholder="0"
-                                />
-                                <span class="budget-suffix">원</span>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>지출예산 <span class="expense-label">(-)</span></label>
-                            <div class="budget-input-wrapper expense">
-                                <span class="budget-prefix">-</span>
-                                <input
-                                    type="text"
-                                    :value="formatInputValue(budgetForm.expense_budget)"
-                                    @input="budgetForm.expense_budget = parseInputValue($event.target.value)"
-                                    placeholder="0"
-                                />
-                                <span class="budget-suffix">원</span>
-                            </div>
-                        </div>
+            <template #footer>
+                <button type="button" class="btn btn-ghost" @click="closePeriodModal">취소</button>
+                <button type="button" class="btn btn-primary" @click="savePeriod">저장</button>
+            </template>
+        </AppModal>
+
+        <!-- 예산 항목 창 -->
+        <AppModal
+            v-if="budgetModal.isOpen"
+            :title="budgetModal.data ? '예산 항목 고치기' : '예산 항목 추가'"
+            icon="bi-cash-coin"
+            description="항 → 목 → 세목 차례로 고른 뒤 금액을 적습니다."
+            size="md"
+            @close="closeBudgetModal"
+        >
+            <div class="form-group">
+                <label for="budget-hang">항 <span class="required" aria-hidden="true">*</span></label>
+                <select id="budget-hang" v-model="budgetForm.hang" @change="onHangChange" required>
+                    <option value="">고르세요</option>
+                    <option v-for="hang in ASSETS_HANG" :key="hang.id" :value="hang.id">
+                        {{ hang.label }}
+                    </option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="budget-mok">목 <span class="required" aria-hidden="true">*</span></label>
+                <select id="budget-mok" v-model="budgetForm.mok" @change="onMokChange" :disabled="!budgetForm.hang" required>
+                    <option value="">{{ budgetForm.hang ? '고르세요' : '항을 먼저 고르세요' }}</option>
+                    <option v-for="mok in filteredMoks" :key="mok.id" :value="mok.id">
+                        {{ mok.label }}
+                    </option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="budget-saemok">세목 <span class="required" aria-hidden="true">*</span></label>
+                <select id="budget-saemok" v-model="budgetForm.saemok" :disabled="!budgetForm.mok" required>
+                    <option value="">{{ budgetForm.mok ? '고르세요' : '목을 먼저 고르세요' }}</option>
+                    <option v-for="saemok in filteredSaemoks" :key="saemok.id" :value="saemok.id">
+                        {{ saemok.label }}
+                    </option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="budget-income">수입예산</label>
+                    <div class="budget-input-wrapper income">
+                        <span class="budget-prefix" aria-hidden="true">+</span>
+                        <input
+                            id="budget-income"
+                            type="text"
+                            inputmode="numeric"
+                            class="num"
+                            :value="formatInputValue(budgetForm.income_budget)"
+                            @input="budgetForm.income_budget = parseInputValue($event.target.value)"
+                            placeholder="0"
+                        />
+                        <span class="budget-suffix">원</span>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn-secondary" @click="closeBudgetModal">취소</button>
-                    <button class="btn-primary" @click="saveBudget" :disabled="!isValidBudgetForm">저장</button>
+                <div class="form-group">
+                    <label for="budget-expense">지출예산</label>
+                    <div class="budget-input-wrapper expense">
+                        <span class="budget-prefix" aria-hidden="true">−</span>
+                        <input
+                            id="budget-expense"
+                            type="text"
+                            inputmode="numeric"
+                            class="num"
+                            :value="formatInputValue(budgetForm.expense_budget)"
+                            @input="budgetForm.expense_budget = parseInputValue($event.target.value)"
+                            placeholder="0"
+                        />
+                        <span class="budget-suffix">원</span>
+                    </div>
                 </div>
             </div>
-        </div>
+            <p class="hint">한 줄에는 수입이나 지출 가운데 하나만 적습니다.</p>
+
+            <template #footer>
+                <button type="button" class="btn btn-ghost" @click="closeBudgetModal">취소</button>
+                <button type="button" class="btn btn-primary" @click="saveBudget" :disabled="!isValidBudgetForm">저장</button>
+            </template>
+        </AppModal>
     </div>
 </template>
 
 <script>
 import PocketBase from 'pocketbase';
+import AppModal from '../layout/AppModal.vue';
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__);
 
 export default {
+    components: { AppModal },
+
     props: ['loginStatus', 'canEdit'],
 
     data() {
@@ -696,11 +736,10 @@ export default {
 </script>
 
 <style scoped>
-.main-content {
+.tab-root {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-3xl);
-    margin-bottom: 50px;
+    gap: var(--spacing-5);
 }
 
 .none-select {
@@ -708,623 +747,407 @@ export default {
     -webkit-user-select: none;
 }
 
-/* 섹션 */
 .section {
-    background: var(--none-color);
-    border-radius: var(--border-radius-lg);
-    padding: var(--spacing-xl);
-    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    padding: var(--spacing-5);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--shadow-sm);
 }
 
 .section-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--spacing-lg);
+    justify-content: space-between;
+    gap: var(--spacing-3);
+    flex-wrap: wrap;
 }
 
 .section-title {
-    font-size: 1.1em;
-    font-weight: var(--font-weight-bold);
-    color: var(--strong-color);
     margin: 0;
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
 }
 
 .budget-summary {
+    margin-left: var(--spacing-2);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-medium);
-    color: var(--medium-color);
-    font-size: 0.9em;
+    color: var(--text-secondary);
 }
 
-.budget-summary .income-text {
-    color: var(--income-color, #2563eb);
-}
+.budget-summary .income-text { color: var(--income-color); }
+.budget-summary .expense-text { color: var(--expense-color); }
 
-.budget-summary .expense-text {
-    color: var(--expense-color, #dc2626);
-}
-
-/* 기간 목록 */
+/* -------------------- 회계기간 -------------------- */
 .period-list {
     display: flex;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-2);
     flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .period-card {
     display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md) var(--spacing-lg);
-    background: var(--light-color);
-    border: 2px solid transparent;
+    align-items: stretch;
+    border: 1px solid var(--border-color);
     border-radius: var(--border-radius-lg);
-    cursor: pointer;
-    transition: all var(--transition-normal);
+    background: var(--bg-primary);
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .period-card:hover {
-    border-color: var(--medium-color);
+    border-color: var(--border-color-strong);
 }
 
+/* 고른 기간은 테두리와 바탕 둘 다로 알린다 */
 .period-card.active {
-    border-color: var(--strong-color);
-    background: rgba(51, 122, 183, 0.1);
+    border-color: var(--primary-600);
+    background: var(--bg-active);
 }
 
-.period-info {
+.period-card.closed {
+    background: var(--bg-secondary);
+}
+
+.period-select {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 2px;
+    padding: var(--spacing-3) var(--spacing-4);
+    border: none;
+    border-radius: var(--border-radius-lg);
+    background: transparent;
+    text-align: left;
 }
 
 .period-name {
-    font-weight: var(--font-weight-semibold);
-    color: var(--strong-color);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
 }
 
 .period-date {
-    font-size: 0.8em;
-    color: var(--medium-color);
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+.closed-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px var(--spacing-2);
+    border-radius: var(--border-radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
 }
 
 .period-actions {
     display: flex;
-    gap: var(--spacing-xs);
-}
-
-.period-card.closed {
-    opacity: 0.7;
-    background: var(--bg-tertiary);
-}
-
-.period-card.closed.active {
-    opacity: 1;
-}
-
-.closed-badge {
-    display: inline-block;
-    padding: 2px 6px;
-    margin-left: 6px;
-    font-size: 0.7em;
-    font-weight: var(--font-weight-bold);
-    background: var(--danger-color);
-    color: white;
-    border-radius: var(--border-radius-sm);
-    vertical-align: middle;
+    align-items: center;
+    gap: 2px;
+    padding-right: var(--spacing-2);
 }
 
 .closed-notice {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm) var(--spacing-lg);
-    background: var(--danger-50);
-    color: var(--danger-600);
-    border-radius: var(--border-radius-md);
-    font-size: 0.9em;
+    gap: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-3);
+    border-radius: var(--border-radius-full);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
 }
 
-.btn-icon.closed-toggle {
-    background: var(--success-100);
-    color: var(--success-600);
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.btn-icon.closed-toggle:hover {
-    background: var(--success-500);
-    color: white;
+.btn-icon:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.btn-icon.danger:hover:not(:disabled) {
+    background: var(--danger-50);
+    color: var(--danger-600);
+}
+
+.btn-icon.closed-toggle {
+    color: var(--warning-600);
 }
 
 .btn-icon:disabled {
-    opacity: 0.4;
+    opacity: 0.3;
     cursor: not-allowed;
 }
 
-.btn-icon:disabled:hover {
-    background: var(--light-color);
-    color: var(--strong-color);
+[data-theme="dark"] .btn-icon.danger:hover:not(:disabled) {
+    background: rgb(239 68 68 / 0.16);
+    color: var(--danger-300);
 }
 
-/* 예산 테이블 */
+/* -------------------- 예산 표 -------------------- */
 .budget-table-wrapper {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .budget-table {
     width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9em;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--text-sm);
 }
 
 .budget-table th,
 .budget-table td {
-    padding: var(--spacing-md);
+    padding: var(--table-cell-padding);
+    border-bottom: 1px solid var(--border-color);
     text-align: left;
-    border: 1px solid var(--light-color);
-}
-
-/* 계층적 테이블 스타일 */
-.budget-table.hierarchical {
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-/* 항 헤더 */
-.hang-header-row td {
-    background: var(--strong-color);
-    color: white;
-    font-weight: var(--font-weight-bold);
-    font-size: 0.95em;
-    padding: var(--spacing-md) var(--spacing-lg) !important;
-    border: none !important;
-    border-bottom: 2px solid var(--strong-color) !important;
-}
-
-.hang-header-cell i {
-    margin-right: var(--spacing-xs);
-    opacity: 0.8;
-}
-
-.priority-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 6px;
-    margin-right: var(--spacing-sm);
-    background: rgba(255, 255, 255, 0.25);
-    border-radius: var(--border-radius-sm);
-    font-size: 0.8em;
-    font-weight: var(--font-weight-bold);
-}
-
-.priority-badge.mok {
-    background: rgba(51, 122, 183, 0.15);
-    color: var(--strong-color);
-    font-size: 0.75em;
-    min-width: 20px;
-    height: 20px;
-}
-
-/* 목 헤더 */
-.mok-header-row td {
-    background: var(--light-color);
-    font-weight: var(--font-weight-semibold);
-    font-size: 0.9em;
-    padding: var(--spacing-sm) var(--spacing-lg) !important;
-    padding-left: calc(var(--spacing-lg) + 1rem) !important;
-    color: var(--strong-color);
-    border-left: 3px solid var(--medium-color) !important;
-}
-
-.mok-header-cell i {
-    margin-right: var(--spacing-xs);
-    opacity: 0.6;
-    font-size: 0.9em;
-}
-
-/* 세목 항목 */
-.item-row td {
-    background: var(--none-color);
-}
-
-.item-cell {
-    padding-left: calc(var(--spacing-lg) + 2rem) !important;
-    font-size: 0.9em;
-}
-
-/* 목 소계 */
-.mok-subtotal-row td {
-    background: rgba(100, 116, 139, 0.08);
-    border-top: 1px dashed var(--medium-color) !important;
-}
-
-.mok-subtotal-label {
-    padding-left: calc(var(--spacing-lg) + 1rem) !important;
-    font-size: 0.85em;
-    font-weight: var(--font-weight-semibold);
-    color: var(--medium-color);
-    font-style: italic;
-}
-
-.subtotal-amount {
-    font-size: 0.9em;
-}
-
-/* 항 소계 */
-.hang-subtotal-row td {
-    background: rgba(51, 122, 183, 0.1);
-    border-top: 2px solid var(--strong-color) !important;
-    border-bottom: 2px solid var(--strong-color) !important;
-}
-
-.hang-subtotal-label {
-    font-weight: var(--font-weight-bold);
-    color: var(--strong-color);
-    font-size: 0.95em;
-}
-
-.hang-subtotal-amount {
-    font-weight: var(--font-weight-bold) !important;
-    font-size: 0.95em !important;
-}
-
-/* 총합계 */
-.total-row th {
-    background: var(--strong-color) !important;
-    color: white !important;
-    font-weight: var(--font-weight-bold);
-    font-size: 1em;
-}
-
-.total-row .income {
-    color: #93c5fd !important;
-}
-
-.total-row .expense {
-    color: #fca5a5 !important;
+    vertical-align: middle;
 }
 
 .budget-table thead th {
-    background: var(--light-color);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color-strong);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
     font-weight: var(--font-weight-semibold);
-    color: var(--strong-color);
+    white-space: nowrap;
 }
 
-.budget-table tfoot th {
-    background: var(--light-color);
+/*
+    항·목 머리줄은 옅은 띠로 나눈다.
+    예전에는 항 머리줄을 새까맣게 칠했는데, 표 안에서 가장 센 것이
+    정작 읽어야 할 금액이 아니라 분류 이름이 되어 버렸다.
+*/
+.hang-header-row td {
+    padding-top: var(--spacing-4);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color-strong);
+    color: var(--text-primary);
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-bold);
+}
+
+.hang-header-cell i,
+.mok-header-cell i {
+    margin-right: var(--spacing-2);
+    color: var(--text-muted);
+}
+
+.mok-header-row td {
+    padding-left: var(--spacing-6);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.priority-badge {
+    display: inline-block;
+    min-width: 26px;
+    margin-right: var(--spacing-2);
+    padding: 0 var(--spacing-1);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.item-cell {
+    padding-left: var(--spacing-10);
+}
+
+.item-row:hover td {
+    background: var(--bg-secondary);
+}
+
+.mok-subtotal-row td,
+.hang-subtotal-row td {
+    background: var(--bg-secondary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.mok-subtotal-label {
+    padding-left: var(--spacing-6);
+    color: var(--text-secondary);
+}
+
+.hang-subtotal-label {
+    color: var(--text-primary);
+    font-weight: var(--font-weight-bold);
+}
+
+.hang-subtotal-row td {
+    border-bottom: 1px solid var(--border-color-strong);
+}
+
+.total-row th {
+    background: var(--bg-tertiary);
+    border-bottom: none;
+    color: var(--text-primary);
+    font-size: var(--text-base);
     font-weight: var(--font-weight-bold);
 }
 
 .budget-amount {
     text-align: right;
-    font-weight: var(--font-weight-semibold);
-    color: var(--strong-color);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
-.budget-amount.income {
-    color: var(--income-color, #2563eb);
-}
-
-.budget-amount.expense {
-    color: var(--expense-color, #dc2626);
-}
+/* 0원은 알릴 것이 없다 — 색을 빼서 실제 금액만 눈에 걸리게 한다 */
+.budget-amount.income { color: var(--income-color); }
+.budget-amount.expense { color: var(--expense-color); }
+.budget-amount.is-zero { color: var(--text-muted); font-weight: var(--font-weight-normal); }
 
 .action-cell {
     display: flex;
-    gap: var(--spacing-xs);
+    gap: 2px;
+    justify-content: flex-end;
 }
 
 .empty-cell {
+    padding: var(--spacing-10) var(--spacing-5);
     text-align: center;
-    color: var(--medium-color);
-    padding: 30px !important;
+    color: var(--text-muted);
 }
 
-/* 버튼 */
-.btn-add {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-sm) var(--spacing-lg);
-    background: var(--strong-color);
-    color: white;
-    border: none;
-    border-radius: var(--border-radius-md);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: background var(--transition-normal);
-}
-
-.btn-add:hover {
-    background: #2b6aa0;
-}
-
-.btn-icon {
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--light-color);
-    border: none;
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    color: var(--strong-color);
-    transition: all var(--transition-normal);
-}
-
-.btn-icon:hover {
-    background: var(--medium-color);
-    color: white;
-}
-
-.btn-icon.danger:hover {
-    background: var(--danger-color);
-}
-
-/* 모달 */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-}
-
-.modal-content {
-    width: 90%;
-    max-width: 450px;
-    background: white;
-    border-radius: var(--border-radius-2xl);
-    box-shadow: var(--shadow-xl);
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-lg) var(--spacing-xl);
-    border-bottom: 1px solid var(--light-color);
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 1.1em;
-}
-
-.close-btn {
-    background: none;
-    border: none;
-    font-size: 1.2em;
-    cursor: pointer;
-    color: var(--medium-color);
-    transition: color var(--transition-fast);
-}
-
-.close-btn:hover {
-    color: var(--strong-color);
-}
-
-.modal-body {
-    padding: var(--spacing-xl);
-}
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-lg) var(--spacing-xl);
-    border-top: 1px solid var(--light-color);
-}
-
-/* 폼 */
+/* -------------------- 창 안의 입력 -------------------- */
 .form-group {
-    margin-bottom: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    margin-bottom: var(--spacing-4);
+    min-width: 0;
 }
 
 .form-group label {
-    display: block;
-    margin-bottom: var(--spacing-sm);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-semibold);
-    font-size: 0.9em;
-    color: var(--strong-color);
+    color: var(--text-primary);
+}
+
+.required {
+    color: var(--danger-600);
 }
 
 .form-group input,
 .form-group select {
     width: 100%;
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--medium-color);
+    min-height: 40px;
+    padding: 0 var(--spacing-3);
+    border: 1px solid var(--border-color-strong);
     border-radius: var(--border-radius-md);
-    font-size: 0.95em;
-    box-sizing: border-box;
-    transition: border-color var(--transition-fast);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--text-base);
 }
 
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
-    border-color: var(--strong-color);
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+[data-theme="dark"] .form-group input:focus,
+[data-theme="dark"] .form-group select:focus {
+    box-shadow: 0 0 0 3px var(--primary-950);
+}
+
+.form-group select:disabled {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    cursor: not-allowed;
 }
 
 .form-row {
-    display: flex;
-    gap: var(--spacing-lg);
-}
-
-.form-row .form-group {
-    flex: 1;
-}
-
-.required {
-    color: var(--danger-color);
-}
-
-.income-label {
-    color: var(--income-color, #2563eb);
-    font-weight: var(--font-weight-bold);
-}
-
-.expense-label {
-    color: var(--expense-color, #dc2626);
-    font-weight: var(--font-weight-bold);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--spacing-3);
 }
 
 .budget-input-wrapper {
     display: flex;
     align-items: center;
-    border: 1px solid var(--medium-color);
+    gap: var(--spacing-1);
+    padding: 0 var(--spacing-3);
+    border: 1px solid var(--border-color-strong);
     border-radius: var(--border-radius-md);
-    overflow: hidden;
-    transition: border-color var(--transition-fast);
+    background: var(--bg-primary);
 }
 
 .budget-input-wrapper:focus-within {
-    border-color: var(--strong-color);
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px var(--primary-100);
 }
 
-.budget-input-wrapper.income:focus-within {
-    border-color: var(--income-color, #2563eb);
-}
-
-.budget-input-wrapper.expense:focus-within {
-    border-color: var(--expense-color, #dc2626);
-}
-
-.budget-input-wrapper .budget-prefix {
-    padding: var(--spacing-sm) var(--spacing-md);
-    font-weight: var(--font-weight-bold);
-    font-size: 1.1em;
-    background: var(--light-color);
-}
-
-.budget-input-wrapper.income .budget-prefix {
-    color: var(--income-color, #2563eb);
-}
-
-.budget-input-wrapper.expense .budget-prefix {
-    color: var(--expense-color, #dc2626);
+[data-theme="dark"] .budget-input-wrapper:focus-within {
+    box-shadow: 0 0 0 3px var(--primary-950);
 }
 
 .budget-input-wrapper input {
     flex: 1;
-    border: none !important;
-    border-radius: 0 !important;
+    min-width: 0;
+    border: none;
+    box-shadow: none;
+    padding: 0;
     text-align: right;
-    font-size: 1em;
-    font-weight: var(--font-weight-semibold);
 }
 
 .budget-input-wrapper input:focus {
-    outline: none;
+    box-shadow: none;
 }
 
-.budget-input-wrapper .budget-suffix {
-    padding: var(--spacing-sm) var(--spacing-md);
-    color: var(--medium-color);
-    font-size: 0.9em;
+.budget-prefix {
+    font-weight: var(--font-weight-bold);
 }
 
-.btn-primary {
-    padding: var(--spacing-sm) var(--spacing-xl);
-    background: var(--strong-color);
-    color: white;
-    border: none;
-    border-radius: var(--border-radius-md);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: background var(--transition-normal);
+.budget-input-wrapper.income .budget-prefix { color: var(--income-color); }
+.budget-input-wrapper.expense .budget-prefix { color: var(--expense-color); }
+
+.budget-suffix {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
 }
 
-.btn-primary:hover {
-    background: #2b6aa0;
-}
-
-.btn-primary:disabled {
-    background: var(--medium-color);
-    cursor: not-allowed;
-}
-
-.btn-secondary {
-    padding: var(--spacing-sm) var(--spacing-xl);
-    background: var(--light-color);
-    color: var(--strong-color);
-    border: none;
-    border-radius: var(--border-radius-md);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: all var(--transition-normal);
-}
-
-.btn-secondary:hover {
-    background: var(--medium-color);
-    color: white;
-}
-
-/* 빈 상태 */
-.empty-state {
-    text-align: center;
-    color: var(--medium-color);
-    padding: var(--spacing-xl);
-    font-size: 0.95em;
-}
-
-.empty-state-large {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 60px var(--spacing-xl);
-    color: var(--medium-color);
-}
-
-.empty-state-large i {
-    font-size: 3em;
-    margin-bottom: var(--spacing-lg);
-}
-
-.content.disable {
-    width: 100%;
-    min-height: 400px;
-    background-color: var(--none-color);
-    box-shadow: var(--shadow-sm);
-    border-radius: var(--border-radius-sm);
-}
-
-/* ============================================
-   📱 모바일 반응형 스타일
-   ============================================ */
-
+/* -------------------- 반응형 -------------------- */
 @media (max-width: 768px) {
-    .main-content {
-        gap: var(--spacing-xl);
-    }
-
     .section {
-        padding: var(--spacing-lg);
-    }
-
-    .section-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--spacing-md);
-    }
-
-    .section-title {
-        font-size: 1em;
-    }
-
-    .budget-summary {
-        display: block;
-        margin-top: var(--spacing-xs);
+        padding: var(--spacing-4);
     }
 
     .period-list {
@@ -1336,335 +1159,16 @@ export default {
         justify-content: space-between;
     }
 
-    .budget-table-wrapper {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+    .period-select {
+        flex: 1;
     }
 
     .budget-table {
-        min-width: 480px;
-    }
-
-    .modal-content {
-        max-width: 95%;
-        max-height: 90vh;
-        overflow-y: auto;
+        min-width: 620px;
     }
 
     .form-row {
-        flex-direction: column;
-        gap: 0;
+        grid-template-columns: minmax(0, 1fr);
     }
-}
-
-@media (max-width: 480px) {
-    .section {
-        padding: var(--spacing-md);
-    }
-
-    .btn-add {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .modal-header,
-    .modal-body,
-    .modal-footer {
-        padding: var(--spacing-md);
-    }
-}
-
-/* ============================================
-   🌙 다크모드 스타일
-   ============================================ */
-
-[data-theme="dark"] .section {
-    background: var(--bg-primary);
-    box-shadow: var(--shadow-md);
-}
-
-[data-theme="dark"] .section-title {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .budget-summary {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .budget-summary .income-text {
-    color: var(--income-color, #60a5fa);
-}
-
-[data-theme="dark"] .budget-summary .expense-text {
-    color: var(--expense-color, #f87171);
-}
-
-[data-theme="dark"] .period-card {
-    background: var(--bg-secondary);
-    border-color: transparent;
-}
-
-[data-theme="dark"] .period-card:hover {
-    border-color: var(--border-color-strong);
-}
-
-[data-theme="dark"] .period-card.active {
-    border-color: var(--primary-500);
-    background: var(--primary-900);
-}
-
-[data-theme="dark"] .period-name {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .period-date {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .budget-table th,
-[data-theme="dark"] .budget-table td {
-    border-color: var(--border-color);
-}
-
-[data-theme="dark"] .budget-table thead th {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-/* 다크모드 계층적 테이블 스타일 */
-[data-theme="dark"] .hang-header-row td {
-    background: var(--primary-700);
-    color: white;
-    border-bottom-color: var(--primary-600) !important;
-}
-
-[data-theme="dark"] .priority-badge {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-[data-theme="dark"] .priority-badge.mok {
-    background: rgba(96, 165, 250, 0.2);
-    color: var(--primary-300);
-}
-
-[data-theme="dark"] .mok-header-row td {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    border-left-color: var(--primary-500) !important;
-}
-
-[data-theme="dark"] .item-row td {
-    background: var(--bg-primary);
-}
-
-[data-theme="dark"] .mok-subtotal-row td {
-    background: rgba(100, 116, 139, 0.15);
-    border-top-color: var(--border-color) !important;
-}
-
-[data-theme="dark"] .mok-subtotal-label {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .hang-subtotal-row td {
-    background: rgba(59, 130, 246, 0.15);
-    border-top-color: var(--primary-500) !important;
-    border-bottom-color: var(--primary-500) !important;
-}
-
-[data-theme="dark"] .hang-subtotal-label {
-    color: var(--primary-400);
-}
-
-[data-theme="dark"] .total-row th {
-    background: var(--primary-700) !important;
-    color: white !important;
-}
-
-[data-theme="dark"] .total-row .income {
-    color: #93c5fd !important;
-}
-
-[data-theme="dark"] .total-row .expense {
-    color: #fca5a5 !important;
-}
-
-[data-theme="dark"] .budget-amount {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .budget-amount.income {
-    color: var(--income-color, #60a5fa);
-}
-
-[data-theme="dark"] .budget-amount.expense {
-    color: var(--expense-color, #f87171);
-}
-
-[data-theme="dark"] .budget-input-wrapper {
-    border-color: var(--border-color);
-}
-
-[data-theme="dark"] .budget-input-wrapper:focus-within {
-    border-color: var(--primary-500);
-}
-
-[data-theme="dark"] .budget-input-wrapper.income:focus-within {
-    border-color: var(--income-color, #60a5fa);
-}
-
-[data-theme="dark"] .budget-input-wrapper.expense:focus-within {
-    border-color: var(--expense-color, #f87171);
-}
-
-[data-theme="dark"] .budget-input-wrapper .budget-prefix {
-    background: var(--bg-tertiary);
-}
-
-[data-theme="dark"] .budget-input-wrapper.income .budget-prefix {
-    color: var(--income-color, #60a5fa);
-}
-
-[data-theme="dark"] .budget-input-wrapper.expense .budget-prefix {
-    color: var(--expense-color, #f87171);
-}
-
-[data-theme="dark"] .budget-input-wrapper input {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .budget-input-wrapper .budget-suffix {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .income-label {
-    color: var(--income-color, #60a5fa);
-}
-
-[data-theme="dark"] .expense-label {
-    color: var(--expense-color, #f87171);
-}
-
-[data-theme="dark"] .btn-add {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
-}
-
-[data-theme="dark"] .btn-add:hover {
-    background: linear-gradient(135deg, var(--primary-400), var(--primary-600));
-}
-
-[data-theme="dark"] .btn-icon {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .btn-icon:hover {
-    background: var(--primary-600);
-}
-
-[data-theme="dark"] .modal-overlay {
-    background: rgba(0, 0, 0, 0.7);
-}
-
-[data-theme="dark"] .modal-content {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .modal-header {
-    border-bottom-color: var(--border-color);
-}
-
-[data-theme="dark"] .modal-footer {
-    border-top-color: var(--border-color);
-}
-
-[data-theme="dark"] .close-btn {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .close-btn:hover {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .form-group label {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .form-group input,
-[data-theme="dark"] .form-group select {
-    background: var(--bg-secondary);
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .form-group input:focus,
-[data-theme="dark"] .form-group select:focus {
-    border-color: var(--primary-500);
-}
-
-[data-theme="dark"] .btn-primary {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
-}
-
-[data-theme="dark"] .btn-primary:hover {
-    background: linear-gradient(135deg, var(--primary-400), var(--primary-600));
-}
-
-[data-theme="dark"] .btn-secondary {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .btn-secondary:hover {
-    background: var(--bg-hover);
-}
-
-[data-theme="dark"] .empty-state,
-[data-theme="dark"] .empty-state-large,
-[data-theme="dark"] .empty-cell {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .content.disable {
-    background: var(--bg-primary);
-}
-
-[data-theme="dark"] .period-card.closed {
-    background: var(--bg-tertiary);
-    opacity: 0.6;
-}
-
-[data-theme="dark"] .period-card.closed.active {
-    opacity: 1;
-}
-
-[data-theme="dark"] .closed-badge {
-    background: var(--danger-500);
-}
-
-[data-theme="dark"] .closed-notice {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--danger-400);
-}
-
-[data-theme="dark"] .btn-icon.closed-toggle {
-    background: rgba(34, 197, 94, 0.2);
-    color: var(--success-400);
-}
-
-[data-theme="dark"] .btn-icon.closed-toggle:hover {
-    background: var(--success-600);
-    color: white;
-}
-
-[data-theme="dark"] .btn-icon:disabled {
-    opacity: 0.3;
-}
-
-[data-theme="dark"] .btn-icon:disabled:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
 }
 </style>

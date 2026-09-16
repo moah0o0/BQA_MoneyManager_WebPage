@@ -1,17 +1,30 @@
 <template>
-<div :class="['sidebar', { 'mobile-open': isMobileOpen }]">
-    <nav class="menuBar">
-        <div
-            v-for="item in menuItems"
-            :key="item.id"
-            :class="['item', { active: currentMenu === item.id }]"
-            @click="handleMenuClick(item.id)"
-        >
-            <i :class="['bi', item.icon]"></i>
-            <span class="item-name">{{ item.name }}</span>
-        </div>
-    </nav>
-</div>
+<!--
+    길잡이는 하는 일의 차례대로 묶는다 — 적고 → 짜고 → 뽑는다.
+    다섯 항목이 평평하게 늘어서 있으면 매번 처음부터 읽어야 한다.
+-->
+<nav
+    :id="id"
+    :class="['sidebar', { 'mobile-open': isMobileOpen }]"
+    aria-label="주요 메뉴"
+>
+    <ul class="menuBar">
+        <template v-for="group in menuGroups" :key="group.label">
+            <li class="group-label" aria-hidden="true">{{ group.label }}</li>
+            <li v-for="item in group.items" :key="item.id">
+                <button
+                    type="button"
+                    :class="['item', { active: currentMenu === item.id }]"
+                    :aria-current="currentMenu === item.id ? 'page' : undefined"
+                    @click="handleMenuClick(item.id)"
+                >
+                    <i :class="['bi', item.icon]" aria-hidden="true"></i>
+                    <span class="item-name">{{ item.name }}</span>
+                </button>
+            </li>
+        </template>
+    </ul>
+</nav>
 </template>
 
 <script>
@@ -24,17 +37,38 @@ export default {
         isMobileOpen: {
             type: Boolean,
             default: false
+        },
+        id: {
+            type: String,
+            default: 'main-nav'
         }
     },
 
+    emits: ['changeMenu', 'close-mobile-menu'],
+
     data() {
         return {
-            menuItems: [
-                { id: 1, name: '장부', icon: 'bi-wallet2' },
-                { id: 2, name: '계정과목', icon: 'bi-tag' },
-                { id: 3, name: '공금보고서', icon: 'bi-file-earmark-medical' },
-                { id: 4, name: '예산', icon: 'bi-calendar-check' },
-                { id: 5, name: '예산현황', icon: 'bi-graph-up' }
+            menuGroups: [
+                {
+                    label: '기록',
+                    items: [
+                        { id: 1, name: '장부', icon: 'bi-wallet2' },
+                    ]
+                },
+                {
+                    label: '설정',
+                    items: [
+                        { id: 2, name: '계정과목', icon: 'bi-tag' },
+                        { id: 4, name: '예산', icon: 'bi-calendar-check' },
+                    ]
+                },
+                {
+                    label: '확인 · 출력',
+                    items: [
+                        { id: 5, name: '예산현황', icon: 'bi-graph-up' },
+                        { id: 3, name: '공금보고서', icon: 'bi-file-earmark-medical' },
+                    ]
+                },
             ]
         }
     },
@@ -55,69 +89,109 @@ export default {
     top: var(--header-height);
     width: var(--sidebar-width);
     height: calc(100vh - var(--header-height));
-    background: var(--bg-secondary);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--bg-primary);
     border-right: 1px solid var(--border-color);
-    padding: var(--spacing-lg) 0;
+    padding: var(--spacing-4) 0 var(--spacing-6);
     z-index: 100;
-    transition: transform var(--duration-300) var(--ease-out),
-                background-color var(--duration-200) var(--ease-out);
+    transition: transform var(--duration-300) var(--ease-out);
 }
 
 .menuBar {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 0 var(--spacing-sm);
+    gap: 2px;
+    margin: 0;
+    padding: 0 var(--spacing-3);
+    list-style: none;
+}
+
+.group-label {
+    margin: var(--spacing-4) 0 var(--spacing-1);
+    padding: 0 var(--spacing-3);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+}
+
+.group-label:first-child {
+    margin-top: 0;
 }
 
 .item {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-radius: var(--border-radius-lg);
-    font-size: 14px;
-    font-weight: 600;
+    gap: var(--spacing-3);
+    width: 100%;
+    padding: var(--spacing-2) var(--spacing-3);
+    border: none;
+    border-radius: var(--border-radius-md);
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
     color: var(--text-secondary);
     background-color: transparent;
-    cursor: pointer;
-    transition: all var(--duration-200) var(--ease-out);
-    user-select: none;
-    -webkit-user-select: none;
+    text-align: left;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .item i {
-    font-size: 18px;
-    width: 24px;
+    font-size: 1rem;
+    width: 20px;
     text-align: center;
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
 }
 
 .item:hover {
-    background-color: var(--bg-tertiary);
+    background-color: var(--bg-hover);
     color: var(--text-primary);
 }
 
+.item:hover i {
+    color: var(--text-secondary);
+}
+
+/*
+    고른 것은 옅은 바탕 + 왼쪽 선으로 알린다.
+    보라 덩어리로 칠하면 길잡이가 화면에서 가장 센 것이 되는데,
+    실제로 봐야 하는 것은 오른쪽 내용이다.
+*/
 .item.active {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
-    color: white;
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    background-color: var(--bg-active);
+    color: var(--primary-700);
+    font-weight: var(--font-weight-bold);
+}
+
+.item.active i {
+    color: var(--primary-600);
+}
+
+.item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    border-radius: 0 3px 3px 0;
+    background: var(--primary-600);
 }
 
 .item.active:hover {
-    background: linear-gradient(135deg, var(--primary-400), var(--primary-500));
+    background-color: var(--primary-100);
 }
 
 /* 반응형: 태블릿 & 모바일 */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .sidebar {
-        position: fixed;
-        left: 0;
         top: 0;
-        width: 280px;
+        width: min(280px, 82vw);
         height: 100vh;
-        padding-top: calc(var(--header-height) + var(--spacing-lg));
+        padding-top: calc(var(--header-height) + var(--spacing-4));
         transform: translateX(-100%);
-        box-shadow: none;
         z-index: 200;
     }
 
@@ -127,49 +201,29 @@ export default {
     }
 
     .item {
-        padding: 14px 20px;
-        font-size: 15px;
+        padding: var(--spacing-3) var(--spacing-3);
+        font-size: var(--text-md);
     }
 
     .item i {
-        font-size: 20px;
+        font-size: 1.125rem;
     }
 }
 
-/* -------------------- 다크모드 스타일 -------------------- */
-:deep([data-theme="dark"]) .sidebar,
-[data-theme="dark"] .sidebar {
-    background: var(--bg-secondary);
-    border-right-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .item,
-[data-theme="dark"] .item {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .item:hover,
-[data-theme="dark"] .item:hover {
-    background-color: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .item.active,
+/* -------------------- 다크모드 -------------------- */
 [data-theme="dark"] .item.active {
-    background: linear-gradient(135deg, var(--primary-600), var(--primary-700));
-    color: white;
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
+    color: var(--primary-300);
 }
 
-:deep([data-theme="dark"]) .item.active:hover,
+[data-theme="dark"] .item.active i {
+    color: var(--primary-400);
+}
+
+[data-theme="dark"] .item.active::before {
+    background: var(--primary-400);
+}
+
 [data-theme="dark"] .item.active:hover {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-600));
-}
-
-@media (max-width: 768px) {
-    :deep([data-theme="dark"]) .sidebar.mobile-open,
-    [data-theme="dark"] .sidebar.mobile-open {
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    }
+    background-color: var(--primary-900);
 }
 </style>

@@ -1,4 +1,7 @@
 <template>
+  <!-- 키보드로 들어온 사람이 길잡이를 매번 지나치지 않도록 -->
+  <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
+
   <BarHeader
     :login-status="loginStatus"
     :login-info="loginInfo"
@@ -10,6 +13,7 @@
     @toggle-mobile-menu="toggleMobileMenu"
   />
   <BarMenu
+    id="main-nav"
     :current-menu="currentMenu"
     :is-mobile-open="isMobileMenuOpen"
     @change-menu="menuChange"
@@ -20,40 +24,52 @@
   <div
     v-if="isMobileMenuOpen"
     class="mobile-menu-overlay"
+    aria-hidden="true"
     @click="closeMobileMenu"
   ></div>
 
   <div class="area-main-content">
-    <TabLedger
-      v-if="currentMenu == 1"
-      :login-status="loginStatus"
-      :init-date="ORGANIZATION_INIT_DATE"
-      :can-edit="canEdit"
-    />
+    <main id="main-content" class="main-content" tabindex="-1">
+      <!-- 로그인 전에는 빈 화면 대신 다음에 할 일을 알려 준다 -->
+      <div v-if="!loginStatus" class="signed-out">
+        <i class="bi bi-person-fill-lock" aria-hidden="true"></i>
+        <h1>로그인이 필요합니다</h1>
+        <p>{{ ORGANIZATION_NAME }}의 장부를 보려면 오른쪽 위 <strong>로그인</strong>을 눌러 주세요.</p>
+      </div>
 
-    <TabAssets
-      v-if="currentMenu == 2"
-      :login-status="loginStatus"
-      :can-edit="canEdit"
-    />
+      <template v-else>
+        <TabLedger
+          v-if="currentMenu == 1"
+          :login-status="loginStatus"
+          :init-date="ORGANIZATION_INIT_DATE"
+          :can-edit="canEdit"
+        />
 
-    <TabReport
-      v-if="currentMenu == 3"
-      :login-status="loginStatus"
-      :init-date="ORGANIZATION_INIT_DATE"
-      :organization-name="ORGANIZATION_NAME"
-    />
+        <TabAssets
+          v-if="currentMenu == 2"
+          :login-status="loginStatus"
+          :can-edit="canEdit"
+        />
 
-    <TabBudget
-      v-if="currentMenu == 4"
-      :login-status="loginStatus"
-      :can-edit="canEdit"
-    />
+        <TabReport
+          v-if="currentMenu == 3"
+          :login-status="loginStatus"
+          :init-date="ORGANIZATION_INIT_DATE"
+          :organization-name="ORGANIZATION_NAME"
+        />
 
-    <TabBudgetMonitor
-      v-if="currentMenu == 5"
-      :login-status="loginStatus"
-    />
+        <TabBudget
+          v-if="currentMenu == 4"
+          :login-status="loginStatus"
+          :can-edit="canEdit"
+        />
+
+        <TabBudgetMonitor
+          v-if="currentMenu == 5"
+          :login-status="loginStatus"
+        />
+      </template>
+    </main>
   </div>
 </template>
 
@@ -70,6 +86,15 @@ import TabBudget from './components/budget/TabBudget.vue'
 import TabBudgetMonitor from './components/budget/TabBudgetMonitor.vue'
 
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__)
+
+/** 화면 이름 — 탭을 바꾸면 문서 제목도 바꾼다. 화면을 못 보는 사람은 제목으로 위치를 안다 */
+const MENU_TITLES = {
+  1: '장부',
+  2: '계정과목',
+  3: '공금보고서',
+  4: '예산',
+  5: '예산현황',
+}
 
 export default {
   components: {
@@ -103,6 +128,15 @@ export default {
     }
   },
 
+  watch: {
+    currentMenu: {
+      immediate: true,
+      handler(menu) {
+        document.title = `${MENU_TITLES[menu] ?? '모두의결산'} · 모두의결산`
+      }
+    }
+  },
+
   async created() {
     // 저장된 테마 불러오기
     const savedTheme = localStorage.getItem('theme')
@@ -130,6 +164,14 @@ export default {
     })
   },
 
+  mounted() {
+    window.addEventListener('keydown', this.onKeydown)
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.onKeydown)
+  },
+
   methods: {
     updateLoginData() {
       this.loginStatus = pb.authStore.isValid
@@ -142,6 +184,13 @@ export default {
       const params = new URLSearchParams(window.location.search)
       params.set('current_menu', newMenu)
       window.history.pushState({}, '', `${window.location.pathname}?${params}`)
+
+      // 탭을 옮기면 읽는 자리도 본문 처음으로 옮겨 준다
+      this.$nextTick(() => document.getElementById('main-content')?.focus())
+    },
+
+    onKeydown(e) {
+      if (e.key === 'Escape' && this.isMobileMenuOpen) this.closeMobileMenu()
     },
 
     toggleTheme() {
@@ -167,21 +216,34 @@ export default {
 }
 </script>
 
-<style>
-/* 모바일 메뉴 오버레이 */
-.mobile-menu-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 150;
-    animation: fadeIn var(--duration-200) var(--ease-out);
+<style scoped>
+#main-content:focus {
+  outline: none;
 }
 
-/* -------------------- 다크모드 스타일 -------------------- */
-[data-theme="dark"] .mobile-menu-overlay {
-    background-color: rgba(0, 0, 0, 0.7);
+/* 로그인 전 화면 */
+.signed-out {
+  display: grid;
+  justify-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-12) var(--spacing-5);
+  text-align: center;
+}
+
+.signed-out i {
+  font-size: 2.5rem;
+  color: var(--border-color-strong);
+}
+
+.signed-out h1 {
+  margin: var(--spacing-2) 0 0;
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+}
+
+.signed-out p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-base);
 }
 </style>

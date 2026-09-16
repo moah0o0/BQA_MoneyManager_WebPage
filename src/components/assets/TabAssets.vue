@@ -1,5 +1,17 @@
 <template>
-    <div class="main-content none-select">
+    <div class="tab-root none-select">
+        <div class="page-head">
+            <div>
+                <h1 class="page-title">계정과목</h1>
+                <p class="page-desc">장부에서 고를 항 · 목 · 세목을 짭니다. 끌어서 차례를 바꿀 수 있습니다.</p>
+            </div>
+            <div class="acts">
+                <button type="button" class="btn btn-secondary" aria-haspopup="dialog" @click="MOLDAL_STATUS_SAEMOK_MANAGE = true">
+                    <i class="bi bi-tags" aria-hidden="true"></i> 세목 전체 관리
+                </button>
+            </div>
+        </div>
+
         <template v-if="loginStatus && ASSETS_LIST_IS_LOADED">
             
             <!-- 1. 편집 가능 모드 (canEdit: true) -->
@@ -37,10 +49,10 @@
                 </Draggable>
                 
                 <!-- 항목 추가 버튼 (편집 모드에서만 표시) -->
-                <div class="HangBlock New" @click="createNewHang()">
-                    <i class="bi bi-plus-circle-fill"></i>
+                <button type="button" class="HangBlock New" @click="createNewHang()">
+                    <i class="bi bi-plus-circle-fill" aria-hidden="true"></i>
                     항 추가하기
-                </div>
+                </button>
                 
                 <!-- 세목 전체 관리 버튼 (편집 모드에서만 표시) -->
 
@@ -65,15 +77,10 @@
                 </div>
             </template>
 
-        <div class="SaemokManageButton" @click="MOLDAL_STATUS_SAEMOK_MANAGE = true">
-            <i class="bi bi-gear-fill"></i> 세목 전체 관리
-        </div>
         </template>
 
-        <template v-if="loginStatus == false">
-            <div class="content disable"></div>
-        </template>
-        
+        <p v-else-if="loginStatus" class="empty" role="status">계정과목을 불러오는 중입니다…</p>
+
 
         <!-- SaemokModal: canEdit이 true이고 모달 상태가 true일 때만 열림 -->
         <SaemokModal 
@@ -523,115 +530,49 @@ export default {
 
 
 <style scoped>
-/* 기존 스타일 유지 */
-.main-content {
+.tab-root {
     display: flex;
     flex-direction: column;
-    gap: 30px; 
-    margin-bottom:50px;
+    gap: var(--spacing-5);
 }
 
 .HangBlockList {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--spacing-4);
 }
 
-.content.disable {
-    width: 100%;
-    min-height: 730px;
-    background-color: var(--none-color);
-    box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
-    border-radius: 5px;
-}
-
+/* 항 추가 — 비어 있는 자리를 점선으로 그려 '여기에 더 넣는다'를 보인다 */
 .HangBlock.New {
-    /* Hang 추가 버튼 스타일 */
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    padding: 20px;
-    border: 2px dashed var(--light-color);
-    border-radius: 8px;
-    
-    color: var(--medium-color);
-    font-size: 1.1em;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    gap: var(--spacing-2);
+    width: 100%;
+    padding: var(--spacing-5);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--border-radius-xl);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-semibold);
+    transition: border-color var(--transition-fast), color var(--transition-fast),
+        background-color var(--transition-fast);
 }
 
-.HangBlock.New:hover{
-    color: var(--strong-color);
-    border-color: var(--medium-color);
+.HangBlock.New:hover {
+    border-color: var(--primary-600);
+    background: var(--bg-active);
+    color: var(--primary-700);
+}
+
+[data-theme="dark"] .HangBlock.New:hover {
+    color: var(--primary-300);
 }
 
 .none-select {
   user-select: none;
   -moz-user-select: none;
   -webkit-user-drag: none;
-}
-
-.SaemokManageButton {
-    /* 세목 관리 모달을 열기 위한 버튼 스타일 */
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 15px 25px;
-    border-radius: 50px;
-    background-color: var(--strong-color); 
-    color: var(--light-color); 
-    font-weight: bold;
-    font-size: 1em;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: background-color 0.2s;
-    z-index: 1000; 
-}
-
-.SaemokManageButton:hover {
-    background-color: var(--primary-700);
-}
-
-/* 다크모드 */
-[data-theme="dark"] .content.disable {
-    background-color: var(--bg-primary);
-}
-
-[data-theme="dark"] .HangBlock.New {
-    border-color: var(--border-color);
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .HangBlock.New:hover {
-    color: var(--text-primary);
-    border-color: var(--border-color-strong);
-}
-
-[data-theme="dark"] .SaemokManageButton {
-    background: linear-gradient(135deg, var(--primary-500), var(--primary-700));
-    color: white;
-}
-
-[data-theme="dark"] .SaemokManageButton:hover {
-    background: linear-gradient(135deg, var(--primary-400), var(--primary-600));
-}
-
-/* 모바일 반응형 */
-@media (max-width: 768px) {
-    .main-content {
-        gap: 20px;
-    }
-
-    .SaemokManageButton {
-        bottom: 15px;
-        right: 15px;
-        padding: 12px 20px;
-        font-size: 0.9em;
-    }
 }
 </style>

@@ -1,97 +1,98 @@
 <template>
-  <span
-    class="receipt-label"
+  <!--
+    증빙 칸도 단추여야 한다 — 표 안에서 Tab으로 닿고 Enter로 열려야 한다.
+    글자만으로는 '완료(2)'가 눌리는 것인지 알 수 없어 아이콘도 함께 둔다.
+  -->
+  <button
     v-if="localLedger"
-    @click="canEdit ? modalOpen = true : (RECEIPT_LIST.length > 0 ? modalOpen = true : null)"
+    type="button"
+    class="receipt-label"
     :class="statusLabelStyle"
-    :style="!canEdit ? 'cursor: default;' : ''"
+    :disabled="!canEdit && RECEIPT_LIST.length === 0"
+    aria-haspopup="dialog"
+    :aria-label="`지출증빙 ${statusLabel}. 눌러서 관리`"
+    @click="modalOpen = true"
   >
-    <i class="bi bi-receipt"></i>
+    <i class="bi bi-receipt" aria-hidden="true"></i>
     {{ statusLabel }}
-  </span>
+  </button>
 
-  <Teleport to="body">
-    <div class="receipt-modal-overlay" v-if="modalOpen" @click.self="closeModal">
-      <!-- 모달 컨텐츠: 세로 Flexbox 컨테이너로 변경 -->
-    <div class="receipt-modal-content">
+  <AppModal
+    v-if="modalOpen"
+    title="지출증빙 관리"
+    icon="bi-receipt"
+    description="장부 한 건에 붙는 증빙을 관리합니다."
+    size="md"
+    @close="closeModal"
+  >
+    <!-- 여닫이 -->
+    <section class="receipt-controls">
+      <label class="not-need-switch" v-if="canEdit && notNeedReceipt !== null">
+        <input type="checkbox" v-model="notNeedReceipt" @change="toggleNotNeedReceipt" />
+        <span class="slider" aria-hidden="true"></span>
+        <span class="text">
+          <b>증빙 불요</b>
+          <small>영수증이 필요 없는 거래로 표시합니다. 켜면 올려 둔 영수증은 지워집니다.</small>
+        </span>
+      </label>
 
-      <!-- 1. 모달 헤더 (고정) -->
-      <header class="modal-header">
-        <div class="meta">
-          <span class="title">지출증빙 관리</span>
-          <span class="description">장부 건별로 지출증빙을 관리합니다.</span>
-        </div>
-        <button class="close-btn" @click="closeModal">
-          <i class="bi bi-x-lg"></i>
+      <p v-if="!canEdit" class="notice notice-info read-only-message">
+        <i class="bi bi-lock-fill" aria-hidden="true"></i>
+        조회 전용이라 고칠 수 없습니다.
+      </p>
+    </section>
+
+    <!-- 영수증 -->
+    <section class="view-receipt-container" v-if="showReceipts">
+      <div v-if="isAddPage && canEdit" class="new-receipt">
+        <label class="upload-btn">
+          <i class="bi bi-upload" aria-hidden="true"></i>
+          <b>영수증 파일 올리기</b>
+          <small>png · jpg · jpeg</small>
+          <input type="file" accept=".png,.jpg,.jpeg" @change="uploadReceipt" hidden />
+        </label>
+      </div>
+
+      <button v-else-if="RECEIPT_LIST.length > 0" type="button" class="already-receipt" @click="openReceipt">
+        <img class="receipt" :src="RECEIPT_LIST[CURRENT_PAGINATOR-1]" :alt="`등록된 영수증 ${CURRENT_PAGINATOR}번째`" />
+        <span class="zoom-indicator">
+          <i class="bi bi-arrows-angle-expand" aria-hidden="true"></i> 새 창에서 크게 보기
+        </span>
+      </button>
+
+      <p v-else class="empty no-receipt-placeholder">
+        <i class="bi bi-cloud-slash" aria-hidden="true"></i>
+        올려 둔 영수증이 없습니다.
+      </p>
+    </section>
+
+    <template #footer>
+      <div class="paginator" v-if="showReceipts && displayMaxPaginator > 0">
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="CURRENT_PAGINATOR===1" @click="CURRENT_PAGINATOR--">
+          <i class="bi bi-arrow-left" aria-hidden="true"></i> 이전
         </button>
-      </header>
-      
-      <!-- 2. 모달 컨트롤 및 데이터 영역 (남은 공간 모두 차지) -->
-      <main class="modal-data-area">
-        
-        <!-- 2-1. 컨트롤 영역 (고정) -->
-        <section class="receipt-controls">
-          <label class="not-need-switch" v-if="canEdit && notNeedReceipt !== null">
-            <input type="checkbox" v-model="notNeedReceipt" @change="toggleNotNeedReceipt" />
-            <span class="slider"></span>
-            <span class="text">불요 처리</span>
-          </label>
-          
-          <div v-if="!canEdit" class="read-only-message">
-            <p><i class="bi bi-lock-fill"></i> 조회 전용 모드입니다. 수정/추가/삭제할 수 없습니다.</p>
-          </div>
-        </section>
-
-
-        <!-- 2-2. 영수증 뷰어 영역 (가장 중요: 남은 공간 모두 차지 + 스크롤 가능) -->
-        <section class="view-receipt-container" v-if="showReceipts">
-          <!-- 영수증이 없는 경우: canEdit이 false면 업로드 버튼이 보이지 않습니다. -->
-          <div v-if="isAddPage && canEdit" class="new-receipt">
-            <label class="upload-btn">
-              <i class="bi bi-upload"></i> 영수증 파일 추가<br>(.png, .jpg, .jpeg만 가능)
-              <input type="file" accept=".png,.jpg,.jpeg" @change="uploadReceipt" hidden />
-            </label>
-          </div>
-          <!-- 영수증이 있는 경우 (클릭 시 새 탭에서 열기) -->
-          <div v-else-if="RECEIPT_LIST.length > 0" class="already-receipt" @click="openReceipt">
-            <img class="receipt" :src="RECEIPT_LIST[CURRENT_PAGINATOR-1]" alt="등록된 영수증" />
-            <span class="zoom-indicator">클릭하여 새 창에서 확대</span>
-          </div>
-          <!-- 영수증이 없고, canEdit도 false인 경우 -->
-          <div v-else class="new-receipt no-receipt-placeholder">
-              <i class="bi bi-cloud-slash" style="font-size: 32px;"></i> 
-              등록된 영수증이 없습니다.
-          </div>
-        </section>
-      </main>
-
-      <!-- 3. 모달 푸터 (고정) -->
-      <footer class="modal-footer" v-if="showReceipts && (RECEIPT_LIST.length > 0 || canEdit)">
-        <div class="paginator" v-if="displayMaxPaginator > 0">
-          <button class="nav-btn" :disabled="CURRENT_PAGINATOR===1" @click="CURRENT_PAGINATOR--">
-            <i class="bi bi-arrow-left"></i> 이전
-          </button>
-          <div class="current">{{ CURRENT_PAGINATOR }} / {{ displayMaxPaginator }}</div>
-          <button class="nav-btn" :disabled="CURRENT_PAGINATOR >= displayMaxPaginator" @click="CURRENT_PAGINATOR++">
-            다음 <i class="bi bi-arrow-right"></i>
-          </button>
-        </div>
-        <button class="delete-button" v-if="canEdit && CURRENT_PAGINATOR <= RECEIPT_LIST.length" @click="deleteReceipt">
-          <i class="bi bi-trash3"></i> 영수증 삭제
+        <span class="current num" aria-live="polite">{{ CURRENT_PAGINATOR }} / {{ displayMaxPaginator }}</span>
+        <button type="button" class="btn btn-secondary btn-sm" :disabled="CURRENT_PAGINATOR >= displayMaxPaginator" @click="CURRENT_PAGINATOR++">
+          다음 <i class="bi bi-arrow-right" aria-hidden="true"></i>
         </button>
-      </footer>
-    </div>
-    </div>
-  </Teleport>
+      </div>
+      <button type="button" class="btn btn-danger btn-sm" v-if="showReceipts && canEdit && CURRENT_PAGINATOR <= RECEIPT_LIST.length" @click="deleteReceipt">
+        <i class="bi bi-trash3" aria-hidden="true"></i> 이 영수증 지우기
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" @click="closeModal">닫기</button>
+    </template>
+  </AppModal>
 </template>
-
 
 <script>
 import PocketBase from 'pocketbase';
+import AppModal from '../layout/AppModal.vue';
 // NOTE: __POCKETBASE_API_BASE_URL__ 변수는 런타임 환경에서 제공됩니다.
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__);
 
 export default {
+  components: { AppModal },
+
   emits: ['update-complete'], 
   props: ['ledgerRecord', 'canEdit'],
 
@@ -144,10 +145,6 @@ export default {
     this.localLedger = { ...this.ledgerRecord }
     this.notNeedReceipt = this.localLedger.not_need_receipt || false
     this.refreshReceipts()
-    window.addEventListener('keydown', this.handleEscape)
-  },
-  beforeUnmount() {
-    window.removeEventListener('keydown', this.handleEscape)
   },
 
   methods: {
@@ -168,9 +165,6 @@ export default {
       }
     },
 
-    handleEscape(e) {
-      if (e.key === 'Escape') this.closeModal()
-    },
     closeModal() {
       this.modalOpen = false
       this.CURRENT_PAGINATOR = 1
@@ -259,774 +253,213 @@ export default {
 
 
 <style scoped>
-
-/* =====================
-   Receipt Label Styles
-   ===================== */
+/* ---------- 표 안의 상태 단추 ---------- */
 .receipt-label {
   display: inline-flex;
-  justify-content: center;
   align-items: center;
-  gap: 6px;
-  font-size: 1em;
-  padding: 6px 12px;
-  background-color: var(--light-color);
-  border-radius: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-  color: var(--dark-color);
-  cursor: pointer;
-  transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
-}
-.receipt-label i { font-size: 0.9em; line-height: 1; }
-.receipt-label:not([style*="default"]):hover {
-  background-color: var(--primary-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
-  color: var(--none-color);
-}
-.receipt-label[style*="default"]:hover {
-  background-color: var(--light-color);
-  color: var(--dark-color);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-.receipt-label.exist-data { color: var(--success-color); }
-.receipt-label.exist-data:not([style*="default"]):hover { background-color: var(--success-color); color: var(--none-color); }
-.receipt-label.not-exist-data { color: var(--danger-color); }
-.receipt-label.not-exist-data:not([style*="default"]):hover { background-color: var(--danger-color); color: var(--none-color); }
-.receipt-label.not-need-data { color: var(--primary-color); }
-.receipt-label.not-need-data:not([style*="default"]):hover { background-color: var(--primary-color); color: var(--none-color); }
-
-
-/* =====================
-   Modal Layout 
-   ===================== */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 500;
+  gap: var(--spacing-1);
+  min-height: 28px;
+  padding: 0 var(--spacing-2);
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.receipt-modal {
-  background: var(--none-color);
-  width: 90%;
-  max-width: 900px;
-  max-height: 90vh;
-  border-radius: 16px;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
-  
-  display: flex;
-  flex-direction: column;
-  padding: 30px;
-  overflow: hidden; 
+.receipt-label:disabled {
+  cursor: default;
 }
 
-/* 1. 헤더 영역 */
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0; 
+/* 붙었다 */
+.receipt-label.exist-data {
+  background: var(--success-50);
+  color: var(--success-600);
 }
 
-.modal-header .meta {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* 안 붙여도 되는 건 */
+.receipt-label.not-need-data {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
 }
 
-.modal-header .meta .title { font-size: 26px; font-weight: 800; color: var(--strong-color); }
-.modal-header .meta .description { font-size: 15px; color: var(--strong-color); }
-.close-btn { background: none; border: none; cursor: pointer; font-size: 24px; color: var(--medium-color); transition: color 0.2s; }
-.close-btn:hover { color: var(--danger-color); }
-
-
-/* 2. 메인 데이터 영역 (남은 공간 모두 차지) */
-.modal-data-area {
-  flex: 1; 
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+/* 아직 안 붙였다 — 틀린 것이 아니라 남은 일이다 */
+.receipt-label.not-exist-data {
+  background: var(--warning-50);
+  color: var(--warning-700);
 }
 
-/* 2-1. 컨트롤 영역 (스위치, 알림 등) */
+.receipt-label:hover:not(:disabled) {
+  border-color: currentColor;
+}
+
+[data-theme="dark"] .receipt-label.exist-data {
+  background: rgb(34 197 94 / 0.16);
+  color: var(--success-400);
+}
+
+[data-theme="dark"] .receipt-label.not-exist-data {
+  background: rgb(245 158 11 / 0.16);
+  color: var(--warning-200);
+}
+
+/* ---------- 창 안 ---------- */
 .receipt-controls {
-    flex-shrink: 0;
-    margin-bottom: 15px;
+  margin-bottom: var(--spacing-4);
 }
-.read-only-message p {
-    color: var(--medium-color); 
-    font-weight: 600; 
-    font-size: 14px; 
-    padding: 10px 15px;
-    background-color: var(--background-subtle);
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-/* 스위치 스타일 */
-.not-need-switch { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.not-need-switch input { display: none; }
-.not-need-switch .slider { width: 40px; height: 20px; border-radius: 20px; background: #ccc; position: relative; transition: 0.3s; }
-.not-need-switch .slider::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--none-color); transition: 0.3s; }
-.not-need-switch input:checked + .slider { background: var(--primary-color); }
-.not-need-switch input:checked + .slider::before { transform: translateX(20px); }
-.not-need-switch .text { font-size: 15px; font-weight: 600; color: var(--strong-color); }
 
-
-/* 2-2. 영수증 뷰어 컨테이너 (남은 공간 모두 차지 및 스크롤) */
-.view-receipt-container {
-  flex: 1;
-  min-height: 0; 
-  overflow-y: auto; 
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background-color: var(--background-subtle);
+.not-need-switch {
   display: flex;
-  justify-content: center;
-  align-items: flex-start; /* <-- 수직 정렬을 상단(flex-start)으로 변경하여 긴 내용이 위에서부터 시작하도록 수정 */
-  padding: 10px; 
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  cursor: pointer;
 }
 
-/* 이미지 컨테이너 - 수정됨: height: 100% 제거 */
-.already-receipt {
-    position: relative;
-    display: flex;
-    flex-direction: column; /* 세로 정렬을 위해 추가 */
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    /* height: 100%; <- 이 코드를 제거하여 내용물 크기만큼 늘어나게 함 */
-    cursor: pointer;
-    padding: 20px 0; /* 세로가 긴 이미지를 위해 상하 패딩 추가 */
+.not-need-switch:hover {
+  background: var(--bg-secondary);
 }
 
-/* 영수증 이미지 - 수정됨: max-height: 100% 제거 */
-.view-receipt-container img.receipt {
-  /* max-height: 100%; <- 이 코드를 제거하여 세로 길이 제한을 품 */
-  max-width: 100%; 
-  object-fit: contain; 
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-  transition: transform 0.2s ease;
+.not-need-switch input {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  flex-shrink: 0;
 }
 
-.already-receipt:hover .zoom-indicator {
-    opacity: 1;
-    transform: translateY(-50%);
+.not-need-switch .slider {
+  display: none;
 }
 
-.zoom-indicator {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -60%);
-    background: rgba(0, 0, 0, 0.7);
-    color: var(--none-color);
-    padding: 8px 16px;
-    border-radius: 50px;
-    font-size: 14px;
-    opacity: 0;
-    transition: opacity 0.3s, transform 0.3s;
-    pointer-events: none;
-}
-
-.new-receipt, .no-receipt-placeholder {
+.not-need-switch .text {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+
+.not-need-switch .text small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: var(--line-height-normal);
+}
+
+.read-only-message {
+  margin: 0;
+}
+
+/* ---------- 영수증 ---------- */
+.view-receipt-container {
+  display: flex;
   align-items: center;
-  height: 100%; 
+  justify-content: center;
+  min-height: 280px;
+  padding: var(--spacing-3);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+}
+
+.new-receipt {
   width: 100%;
-  border-radius: 10px;
-  color: var(--medium-color); 
-  gap: 15px;
 }
 
 .upload-btn {
   display: flex;
-  width: 95%;
-  height: 95%;
-
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  color: var(--strong-color);
-  border: 2px dashed var(--medium-color);
-  background-color: var(--none-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
+  gap: var(--spacing-1);
+  width: 100%;
+  min-height: 240px;
+  padding: var(--spacing-6);
+  border: 2px dashed var(--border-color-strong);
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
   text-align: center;
-  line-height: 1.4;
-}
-.upload-btn:hover {
-  color: var(--primary-color);
-  border-color: var(--primary-color);
-  background-color: rgba(0, 123, 255, 0.05);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
 }
 
+.upload-btn:hover,
+.upload-btn:focus-within {
+  border-color: var(--primary-600);
+  color: var(--primary-700);
+}
 
-/* 3. 푸터 영역 (고정) */
-.modal-footer {
-  display: flex;
-  justify-content: space-between;
+.upload-btn i {
+  font-size: 1.5rem;
+}
+
+.upload-btn small {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.already-receipt {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: var(--border-radius-md);
+  background: transparent;
+  overflow: hidden;
+}
+
+.receipt {
+  display: block;
+  width: 100%;
+  max-height: 46vh;
+  object-fit: contain;
+  border-radius: var(--border-radius-md);
+  background: #fff;
+}
+
+.zoom-indicator {
+  position: absolute;
+  right: var(--spacing-2);
+  bottom: var(--spacing-2);
+  display: inline-flex;
   align-items: center;
-  flex-shrink: 0; 
-  padding-top: 20px; 
-  margin-top: 20px;
-  border-top: 1px solid var(--border-color);
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--border-radius-full);
+  background: rgb(15 23 42 / 0.75);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
 }
 
+.no-receipt-placeholder {
+  padding: var(--spacing-8);
+}
+
+.no-receipt-placeholder i {
+  display: block;
+  margin-bottom: var(--spacing-2);
+  font-size: 2rem;
+  color: var(--border-color-strong);
+}
+
+/* ---------- 쪽 넘기기 ---------- */
 .paginator {
   display: flex;
   align-items: center;
-  gap: 15px;
-}
-.nav-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 12px;
-  background: var(--background-subtle);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--strong-color);
-  transition: all 0.2s;
-}
-.nav-btn:hover:not(:disabled) {
-  background: var(--light-color);
-  color: var(--primary-color);
-  border-color: var(--primary-color);
-}
-.nav-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--light-color);
-}
-.current {
-  font-weight: 700;
-  color: var(--strong-color);
+  gap: var(--spacing-2);
+  margin-right: auto;
 }
 
-.delete-button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid var(--danger-color);
-  background: var(--none-color);
-  color: var(--danger-color);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.delete-button:hover {
-  background: var(--danger-color);
-  color: var(--none-color);
-  box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3);
-}
-
-/* -------------------- 다크모드 스타일 -------------------- */
-:deep([data-theme="dark"]) .receipt-label,
-[data-theme="dark"] .receipt-label {
-    background-color: var(--bg-tertiary);
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .receipt-label:not([style*="default"]):hover,
-[data-theme="dark"] .receipt-label:not([style*="default"]):hover {
-    background-color: var(--primary-600);
-    color: white;
-}
-
-:deep([data-theme="dark"]) .receipt-label.exist-data,
-[data-theme="dark"] .receipt-label.exist-data {
-    color: var(--success-500);
-}
-
-:deep([data-theme="dark"]) .receipt-label.exist-data:not([style*="default"]):hover,
-[data-theme="dark"] .receipt-label.exist-data:not([style*="default"]):hover {
-    background-color: var(--success-500);
-    color: white;
-}
-
-:deep([data-theme="dark"]) .receipt-label.not-exist-data,
-[data-theme="dark"] .receipt-label.not-exist-data {
-    color: var(--danger-500);
-}
-
-:deep([data-theme="dark"]) .receipt-label.not-exist-data:not([style*="default"]):hover,
-[data-theme="dark"] .receipt-label.not-exist-data:not([style*="default"]):hover {
-    background-color: var(--danger-500);
-    color: white;
-}
-
-:deep([data-theme="dark"]) .receipt-label.not-need-data,
-[data-theme="dark"] .receipt-label.not-need-data {
-    color: var(--primary-400);
-}
-
-:deep([data-theme="dark"]) .receipt-label.not-need-data:not([style*="default"]):hover,
-[data-theme="dark"] .receipt-label.not-need-data:not([style*="default"]):hover {
-    background-color: var(--primary-600);
-    color: white;
-}
-
-:deep([data-theme="dark"]) .modal-overlay,
-[data-theme="dark"] .modal-overlay {
-    background: rgba(0, 0, 0, 0.7);
-}
-
-:deep([data-theme="dark"]) .receipt-modal,
-[data-theme="dark"] .receipt-modal {
-    background: var(--bg-secondary);
-}
-
-:deep([data-theme="dark"]) .modal-header,
-[data-theme="dark"] .modal-header {
-    border-bottom-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .modal-header .meta .title,
-[data-theme="dark"] .modal-header .meta .title {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-header .meta .description,
-[data-theme="dark"] .modal-header .meta .description {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .close-btn,
-[data-theme="dark"] .close-btn {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .close-btn:hover,
-[data-theme="dark"] .close-btn:hover {
-    color: var(--danger-500);
-}
-
-:deep([data-theme="dark"]) .read-only-message p,
-[data-theme="dark"] .read-only-message p {
-    color: var(--text-secondary);
-    background-color: var(--bg-tertiary);
-}
-
-:deep([data-theme="dark"]) .not-need-switch .slider,
-[data-theme="dark"] .not-need-switch .slider {
-    background: var(--gray-600);
-}
-
-:deep([data-theme="dark"]) .not-need-switch .slider::before,
-[data-theme="dark"] .not-need-switch .slider::before {
-    background: var(--gray-300);
-}
-
-:deep([data-theme="dark"]) .not-need-switch input:checked + .slider,
-[data-theme="dark"] .not-need-switch input:checked + .slider {
-    background: var(--primary-500);
-}
-
-:deep([data-theme="dark"]) .not-need-switch .text,
-[data-theme="dark"] .not-need-switch .text {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .view-receipt-container,
-[data-theme="dark"] .view-receipt-container {
-    background-color: var(--bg-tertiary);
-    border-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .new-receipt,
-[data-theme="dark"] .new-receipt,
-:deep([data-theme="dark"]) .no-receipt-placeholder,
-[data-theme="dark"] .no-receipt-placeholder {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .upload-btn,
-[data-theme="dark"] .upload-btn {
-    color: var(--text-primary);
-    border-color: var(--border-color);
-    background-color: var(--bg-secondary);
-}
-
-:deep([data-theme="dark"]) .upload-btn:hover,
-[data-theme="dark"] .upload-btn:hover {
-    color: var(--primary-400);
-    border-color: var(--primary-500);
-    background-color: var(--primary-900);
-}
-
-:deep([data-theme="dark"]) .modal-footer,
-[data-theme="dark"] .modal-footer {
-    border-top-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .nav-btn,
-[data-theme="dark"] .nav-btn {
-    background: var(--bg-tertiary);
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .nav-btn:hover:not(:disabled),
-[data-theme="dark"] .nav-btn:hover:not(:disabled) {
-    background: var(--bg-secondary);
-    color: var(--primary-400);
-    border-color: var(--primary-500);
-}
-
-:deep([data-theme="dark"]) .nav-btn:disabled,
-[data-theme="dark"] .nav-btn:disabled {
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .current,
-[data-theme="dark"] .current {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .delete-button,
-[data-theme="dark"] .delete-button {
-    border-color: var(--danger-500);
-    background: var(--bg-secondary);
-    color: var(--danger-500);
-}
-
-:deep([data-theme="dark"]) .delete-button:hover,
-[data-theme="dark"] .delete-button:hover {
-    background: var(--danger-500);
-    color: white;
-}
-
-</style>
-
-<!-- Teleport된 요소는 scoped 스타일이 적용되지 않으므로 전역 스타일 사용 -->
-<style>
-.receipt-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 500;
-}
-
-.receipt-modal-content {
-  background: var(--bg-primary);
-  width: 90%;
-  max-width: 900px;
-  max-height: 90vh;
-  border-radius: 16px;
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
-  display: flex;
-  flex-direction: column;
-  padding: 30px;
-  overflow: hidden;
-}
-
-.receipt-modal-content .modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.receipt-modal-content .modal-header .meta {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.receipt-modal-content .modal-header .meta .title {
-  font-size: 26px;
-  font-weight: 800;
-  color: var(--text-primary);
-}
-
-.receipt-modal-content .modal-header .meta .description {
-  font-size: 15px;
+.paginator .current {
+  min-width: 52px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
-}
-
-.receipt-modal-content .close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 24px;
-  color: var(--text-secondary);
-  transition: color 0.2s;
-}
-
-.receipt-modal-content .close-btn:hover {
-  color: var(--danger-500);
-}
-
-.receipt-modal-content .modal-data-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.receipt-modal-content .receipt-controls {
-  flex-shrink: 0;
-  margin-bottom: 15px;
-}
-
-.receipt-modal-content .read-only-message p {
-  color: var(--text-secondary);
-  font-weight: 600;
-  font-size: 14px;
-  padding: 10px 15px;
-  background-color: var(--bg-secondary);
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.receipt-modal-content .not-need-switch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.receipt-modal-content .not-need-switch input {
-  display: none;
-}
-
-.receipt-modal-content .not-need-switch .slider {
-  width: 40px;
-  height: 20px;
-  border-radius: 20px;
-  background: var(--gray-400);
-  position: relative;
-  transition: 0.3s;
-}
-
-.receipt-modal-content .not-need-switch .slider::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: white;
-  transition: 0.3s;
-}
-
-.receipt-modal-content .not-need-switch input:checked + .slider {
-  background: var(--primary-500);
-}
-
-.receipt-modal-content .not-need-switch input:checked + .slider::before {
-  transform: translateX(20px);
-}
-
-.receipt-modal-content .not-need-switch .text {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.receipt-modal-content .view-receipt-container {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background-color: var(--bg-secondary);
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 10px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.receipt-modal-content .already-receipt {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  cursor: pointer;
-  padding: 20px 0;
-}
-
-.receipt-modal-content .view-receipt-container img.receipt {
-  max-width: 100%;
-  object-fit: contain;
-  border-radius: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
-  transition: transform 0.2s ease;
-}
-
-.receipt-modal-content .already-receipt:hover .zoom-indicator {
-  opacity: 1;
-  transform: translateY(-50%);
-}
-
-.receipt-modal-content .zoom-indicator {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -60%);
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 50px;
-  font-size: 14px;
-  opacity: 0;
-  transition: opacity 0.3s, transform 0.3s;
-  pointer-events: none;
-}
-
-.receipt-modal-content .new-receipt,
-.receipt-modal-content .no-receipt-placeholder {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  width: 100%;
-  border-radius: 10px;
-  color: var(--text-secondary);
-  gap: 15px;
-}
-
-.receipt-modal-content .upload-btn {
-  display: flex;
-  width: 95%;
-  height: 95%;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  color: var(--text-primary);
-  border: 2px dashed var(--border-color);
-  background-color: var(--bg-primary);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
   text-align: center;
-  line-height: 1.4;
-}
-
-.receipt-modal-content .upload-btn:hover {
-  color: var(--primary-500);
-  border-color: var(--primary-500);
-  background-color: var(--primary-50);
-}
-
-.receipt-modal-content .modal-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-  padding-top: 20px;
-  margin-top: 20px;
-  border-top: 1px solid var(--border-color);
-}
-
-.receipt-modal-content .paginator {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.receipt-modal-content .nav-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 8px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--text-primary);
-  transition: all 0.2s;
-}
-
-.receipt-modal-content .nav-btn:hover:not(:disabled) {
-  background: var(--bg-tertiary);
-  color: var(--primary-500);
-  border-color: var(--primary-500);
-}
-
-.receipt-modal-content .nav-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--bg-tertiary);
-}
-
-.receipt-modal-content .current {
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.receipt-modal-content .delete-button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid var(--danger-500);
-  background: var(--bg-primary);
-  color: var(--danger-500);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.receipt-modal-content .delete-button:hover {
-  background: var(--danger-500);
-  color: white;
-  box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3);
-}
-
-/* 다크모드 */
-[data-theme="dark"] .receipt-modal-overlay {
-  background: rgba(0, 0, 0, 0.7);
-}
-
-[data-theme="dark"] .receipt-modal-content {
-  background: var(--bg-secondary);
-}
-
-[data-theme="dark"] .receipt-modal-content .upload-btn:hover {
-  background-color: var(--primary-900);
 }
 </style>

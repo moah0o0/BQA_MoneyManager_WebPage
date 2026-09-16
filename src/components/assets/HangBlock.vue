@@ -12,16 +12,23 @@
                 <span class="hang-label" v-else>{{ hang.label }}</span>
             </div>
             <div class="hang-toolbar" v-if="canEdit">
-                <i class="bi bi-trash3" @click="$emit('delete-hang', hang.id)"></i>
+                <button
+                    type="button"
+                    class="icon-btn danger"
+                    :aria-label="`${hang.label} 항 지우기`"
+                    @click="$emit('delete-hang', hang.id)"
+                >
+                    <i class="bi bi-trash3" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
 
         <div class="MokBlockList">
             
-            <div class="MokBlock New" v-if="canEdit"  @click="$emit('create-mok')">
-                <i class="bi bi-plus-circle-fill"></i>
-                추가하기
-            </div>
+            <button type="button" class="MokBlock New" v-if="canEdit" @click="$emit('create-mok')">
+                <i class="bi bi-plus-circle-fill" aria-hidden="true"></i>
+                <span>목 추가하기</span>
+            </button>
             <template v-if="canEdit">
             <Draggable
                 :list="moks"
@@ -146,173 +153,141 @@ export default {
 </script>
 
 <style scoped>
-/* -------------------- Hang 블록 (대분류) 스타일 -------------------- */
+/* -------------------- 항 블록 -------------------- */
 .HangBlock {
     display: flex;
     flex-direction: column;
-    gap: 30px;
-    padding: 30px;
-    
-    background-color: var(--light-color); 
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); 
+    gap: var(--spacing-5);
+    padding: var(--spacing-5);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--shadow-sm);
 }
 
-
-/* -------------------- Hang 헤더 스타일 -------------------- */
-.HangHeader{
+.HangHeader {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 2px solid var(--border-color, #eee); 
-    padding-bottom: 15px;
+    gap: var(--spacing-3);
+    padding-bottom: var(--spacing-3);
+    border-bottom: 1px solid var(--border-color);
 }
 
-.hang-info{
+.hang-info {
     display: flex;
-    gap: 15px;
+    gap: var(--spacing-3);
     align-items: center;
-    cursor: grab; /* 드래그 가능함을 표시 */
+    min-width: 0;
+    cursor: grab;
 }
 
+.hang-info:active {
+    cursor: grabbing;
+}
+
+/*
+    제목 크기를 26px/900에서 낮췄다.
+    한 화면에 항이 여럿 놓이는 자리라, 제목이 너무 크면 정작 안의 목이 안 보인다.
+*/
 .hang-label {
-    font-size: 26px; 
-    font-weight: 900;
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-bold);
 }
 
-.hang-priority{
-    font-size: 1em;
-    font-weight: 600;
-    color: var(--medium-color);
+.hang-priority {
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
-.hang-toolbar > i {
-    font-size: 1.5em;
-    color: var(--medium-color);
-    cursor: pointer;
-    transition: color 0.2s;
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-md);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.hang-toolbar > i:hover {
-    color: var(--strong-color);
+.icon-btn.danger:hover {
+    background: var(--danger-50);
+    color: var(--danger-600);
 }
 
+[data-theme="dark"] .icon-btn.danger:hover {
+    background: rgb(239 68 68 / 0.16);
+    color: var(--danger-300);
+}
 
-/* -------------------- Mok 블록 리스트 및 스크롤 스타일 -------------------- */
+/* -------------------- 목 줄 -------------------- */
 .MokBlockList {
     display: flex;
     flex-direction: row;
-    gap: 20px; 
-    overflow-x: auto; /* 가로 스크롤 가능하게 */
-    padding-bottom: 10px; 
+    gap: var(--spacing-4);
+    overflow-x: auto;
+    padding-bottom: var(--spacing-2);
 }
 
-/* 스크롤바 디자인 */
 .MokBlockList::-webkit-scrollbar {
-    height: 8px; 
+    height: 10px;
 }
 
 .MokBlockList::-webkit-scrollbar-track {
-    background: transparent; 
+    background: transparent;
 }
 
 .MokBlockList::-webkit-scrollbar-thumb {
-    background-color: var(--medium-color);
-    border-radius: 4px;
-    border: 2px solid var(--light-color); 
-    background-clip: padding-box;
+    background-color: var(--border-color-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: var(--border-radius-full);
 }
 
 .MokBlockList::-webkit-scrollbar-thumb:hover {
-    background-color: var(--strong-color);
+    background-color: var(--text-muted);
 }
 
 .draggable-mok-list {
     display: flex;
     flex-direction: row;
-    gap: 20px;
+    gap: var(--spacing-4);
 }
 
-/* Mok 추가 버튼 */
+/* 목 추가 */
 .MokBlock.New {
-    min-width: 150px;
-    padding: 20px;
-    border: 1px dashed var(--border-color, #ccc);
-    
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap:10px;
-    
-    font-weight: 600;
-    color: var(--medium-color);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.MokBlock.New:hover{
-    color: var(--strong-color);
-    border-color: var(--medium-color);
-}
-
-/* -------------------- 기타 및 드래그 관련 -------------------- */
-.hang-info:active {
-    cursor: grabbing;
-}
-
-/* -------------------- 다크모드 스타일 -------------------- */
-:deep([data-theme="dark"]) .HangBlock,
-[data-theme="dark"] .HangBlock {
-    background-color: var(--bg-secondary);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-:deep([data-theme="dark"]) .HangHeader,
-[data-theme="dark"] .HangHeader {
-    border-bottom-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .hang-label,
-[data-theme="dark"] .hang-label {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .hang-priority,
-[data-theme="dark"] .hang-priority {
+    gap: var(--spacing-2);
+    min-width: 150px;
+    padding: var(--spacing-5);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--border-radius-lg);
+    background: transparent;
     color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+    transition: border-color var(--transition-fast), color var(--transition-fast),
+        background-color var(--transition-fast);
 }
 
-:deep([data-theme="dark"]) .hang-toolbar > i,
-[data-theme="dark"] .hang-toolbar > i {
-    color: var(--text-secondary);
+.MokBlock.New:hover {
+    border-color: var(--primary-600);
+    background: var(--bg-active);
+    color: var(--primary-700);
 }
 
-:deep([data-theme="dark"]) .hang-toolbar > i:hover,
-[data-theme="dark"] .hang-toolbar > i:hover {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .MokBlockList::-webkit-scrollbar-thumb,
-[data-theme="dark"] .MokBlockList::-webkit-scrollbar-thumb {
-    background-color: var(--gray-600);
-    border-color: var(--bg-secondary);
-}
-
-:deep([data-theme="dark"]) .MokBlockList::-webkit-scrollbar-thumb:hover,
-[data-theme="dark"] .MokBlockList::-webkit-scrollbar-thumb:hover {
-    background-color: var(--gray-500);
-}
-
-:deep([data-theme="dark"]) .MokBlock.New,
-[data-theme="dark"] .MokBlock.New {
-    border-color: var(--border-color);
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .MokBlock.New:hover,
 [data-theme="dark"] .MokBlock.New:hover {
-    color: var(--text-primary);
-    border-color: var(--text-secondary);
+    color: var(--primary-300);
 }
 </style>

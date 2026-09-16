@@ -12,7 +12,14 @@
                 <span class="mok-label" v-else>{{ mok.label }}</span>
             </div>
             <div class="mok-toolbar" v-if="canEdit">
-                <i class="bi bi-trash3" @click="$emit('delete-mok')"></i>
+                <button
+                    type="button"
+                    class="icon-btn danger"
+                    :aria-label="`${mok.label} 목 지우기`"
+                    @click="$emit('delete-mok')"
+                >
+                    <i class="bi bi-trash3" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
         
@@ -33,55 +40,72 @@
                         <span class="specific-saemok-priority">{{ zeroPad(option.priority, 4) }}</span>
                         {{ option.label }}
                     </div>
-                    <div v-if="canEdit" class="option-delete" @click="changeSpecificSaemokList(option)">
-                        <i class="bi bi-x-square-fill"></i>
-                    </div>
+                    <button
+                        v-if="canEdit"
+                        type="button"
+                        class="option-delete"
+                        :aria-label="`${option.label} 세목 조건에서 빼기`"
+                        @click="changeSpecificSaemokList(option)"
+                    >
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </button>
                 </span>
             </div>
 
-            <div class="add-specific-saemok-option" v-if="mok.is_able_specific_saemok && canEdit" @click="$emit('change-modal-status', mok.id)">
-                <i class="bi bi-patch-plus-fill"></i> 추가하기
-            </div>
+            <button
+                type="button"
+                class="add-specific-saemok-option"
+                v-if="mok.is_able_specific_saemok && canEdit"
+                aria-haspopup="dialog"
+                @click="$emit('change-modal-status', mok.id)"
+            >
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> 세목 고르기
+            </button>
 
-            <Teleport to="body">
-                <div class="modal-specific-saemok" v-if="modalStatus[mok.id]" @click.self="$emit('change-modal-status', mok.id)">
-                    <div class="modal-add-specific-saemok">
-                        <div class="modal-header">
-                            <div class="modal-info">
-                                <span class="modal-title">세목 조건 추가</span>
-                                <span class="modal-description"><strong>{{ mok.label }}</strong>목에서 허용할 세목을 모두 선택하세요.</span>
-                                <span class="modal-description-small">※ 클릭하시면 추가/제외가 가능합니다.</span>
-                            </div>
-                            <div class="modal-exit" @click="$emit('change-modal-status', mok.id)">
-                                <i class="bi bi-x-lg"></i>
-                            </div>
-                        </div>
-                        <div class="modal-content-saemok-list">
-                            <span class="option"
-                                v-for="option in saemoks"
-                                :key="option.id"
-                                :class="getSpecificSaemokIdList.includes(option.id) ? 'saemok-select' : 'saemok-not-select'"
-                                @click="changeSpecificSaemokList(option)">
-                                <div class="option-label">
-                                    <span class="specific-saemok-priority">{{ zeroPad(option.priority, 4) }}</span>
-                                    {{ option.label }}
-                                </div>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </Teleport>
+            <AppModal
+                v-if="modalStatus[mok.id]"
+                title="세목 고르기"
+                icon="bi-diagram-3"
+                :description="`${mok.label} 목에서 쓸 수 있는 세목만 고릅니다. 눌러서 넣고 뺍니다.`"
+                size="md"
+                @close="$emit('change-modal-status', mok.id)"
+            >
+                <ul class="modal-content-saemok-list">
+                    <li v-for="option in saemoks" :key="option.id">
+                        <button
+                            type="button"
+                            class="option"
+                            :class="getSpecificSaemokIdList.includes(option.id) ? 'saemok-select' : 'saemok-not-select'"
+                            :aria-pressed="getSpecificSaemokIdList.includes(option.id) ? 'true' : 'false'"
+                            @click="changeSpecificSaemokList(option)"
+                        >
+                            <span class="specific-saemok-priority num">{{ zeroPad(option.priority, 4) }}</span>
+                            <span class="option-label">{{ option.label }}</span>
+                            <i
+                                :class="['bi', getSpecificSaemokIdList.includes(option.id) ? 'bi-check-lg' : 'bi-plus-lg']"
+                                aria-hidden="true"
+                            ></i>
+                        </button>
+                    </li>
+                </ul>
+
+                <template #footer>
+                    <span class="picked-count">{{ getSpecificSaemokIdList.length }}개 고름</span>
+                    <button type="button" class="btn btn-primary" @click="$emit('change-modal-status', mok.id)">다 골랐어요</button>
+                </template>
+            </AppModal>
 
         </div>
     </div>
 </template>
 
 <script>
-import InlineEditor from './InlineEditor.vue' // 경로를 확인해주세요.
+import InlineEditor from './InlineEditor.vue'
+import AppModal from '../layout/AppModal.vue'
 
 export default {
     name: 'MokBlock',
-    components: { InlineEditor },
+    components: { InlineEditor, AppModal },
     
     // 부모(HangBlock/AssetHierarchyManager)로부터 필요한 데이터를 props로 받습니다.
     props: {
@@ -130,475 +154,237 @@ export default {
 </script>
 
 <style scoped>
-/* -------------------- Mok 블록 (중분류) 스타일 -------------------- */
-.MokBlock{
+.MokBlock {
     display: flex;
     flex-direction: column;
-    gap: 15px; 
-
-    flex-shrink: 0; 
-    width: fit-content; 
-
-    min-width: 250px; 
-    padding: 20px;
-
-    background-color: var(--none-color);
-    border-radius: 6px;
-    border: 1px solid var(--border-color, #f0f0f0);
-    transition: box-shadow 0.2s;
+    gap: var(--spacing-3);
+    min-width: 260px;
+    max-width: 320px;
+    padding: var(--spacing-4);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    transition: border-color var(--transition-fast);
 }
 
 .MokBlock:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--border-color-strong);
 }
 
-/* -------------------- Mok Header 스타일 -------------------- */
-.MokHeader{
+.MokHeader {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    width: 100%; 
+    gap: var(--spacing-2);
+    cursor: grab;
 }
 
-.mok-info{
+.MokHeader:active {
+    cursor: grabbing;
+}
+
+.mok-info {
     display: flex;
-    gap: 10px;
     align-items: center;
-    
-    flex-grow: 1; 
-    min-width: 0; 
-    overflow: hidden; 
-    
-    cursor: grab; /* 드래그 가능함을 표시 */
+    gap: var(--spacing-2);
+    min-width: 0;
 }
 
 .mok-label {
-    font-size: 17px;
-    font-weight: 700;
-    
-    white-space: normal;
-    word-break: break-word; 
-    flex-shrink: 1; 
-    min-width: 0;
-    overflow: hidden;
-    color: var(--strong-color);
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
 }
 
-.mok-priority{
-    font-size: 0.8em;
-    font-weight: 400;
-    color: var(--medium-color);
+.mok-priority {
     flex-shrink: 0;
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
 .mok-toolbar {
     flex-shrink: 0;
-    padding-left: 10px; 
 }
 
-.mok-toolbar > i {
-    font-size: 1.2em;
-    color: var(--medium-color);
-    cursor: pointer;
-    transition: color 0.2s;
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-.mok-toolbar > i:hover {
-    color: var(--strong-color);
+.icon-btn.danger:hover {
+    background: var(--danger-50);
+    color: var(--danger-600);
 }
 
-/* -------------------- 세목 조건 관리 스타일 -------------------- */
+[data-theme="dark"] .icon-btn.danger:hover {
+    background: rgb(239 68 68 / 0.16);
+    color: var(--danger-300);
+}
+
+/* -------------------- 세목 조건 -------------------- */
 .specific-saemok-manage {
-    border-top: 1px dotted var(--medium-color);
-    font-size: 0.9em;
-
     display: flex;
     flex-direction: column;
-    margin-top: 5px;
-    padding-top: 15px;
-    gap: 20px;
+    gap: var(--spacing-2);
+}
+
+.not-need-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.not-need-switch input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+/* 예전의 직접 그린 스위치는 접히는 곳이 많아 기본 체크박스로 되돌렸다 */
+.not-need-switch .slider {
+    display: none;
 }
 
 .specific-saemok-already-options {
     display: flex;
     flex-direction: column;
-    gap: 10px; /* 목록 간 간격 조정 */
+    gap: var(--spacing-1);
 }
 
-/* 세목 목록 항목 스타일 */
+.description {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    line-height: var(--line-height-normal);
+}
+
 .option {
     display: flex;
-    flex-direction: row;
+    align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
-    background-color: var(--light-color);
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    font-weight: 600;
-    color: var(--strong-color);
+    gap: var(--spacing-2);
+    padding: var(--spacing-1) var(--spacing-2);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    font-size: var(--text-sm);
 }
 
 .option-label {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--spacing-2);
+    min-width: 0;
 }
 
 .option-delete {
-    cursor: pointer;
-    color: var(--medium-color);
-    transition: color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
 }
 
 .option-delete:hover {
-    color: var(--danger-color);
+    background: var(--danger-50);
+    color: var(--danger-600);
 }
 
-.add-specific-saemok-option { 
-    cursor: pointer;
-    background: var(--success-color);
-    padding:5px;
-    text-align: center;
-    border-radius: 8px;
-    color: var(--none-color);
-    font-weight: 800;
-    transition: all 0.2s ease;
-}  
+[data-theme="dark"] .option-delete:hover {
+    background: rgb(239 68 68 / 0.16);
+    color: var(--danger-300);
+}
+
+.add-specific-saemok-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-1);
+    width: 100%;
+    min-height: 32px;
+    padding: 0 var(--spacing-3);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    transition: border-color var(--transition-fast), color var(--transition-fast);
+}
 
 .add-specific-saemok-option:hover {
-    background-color: var(--none-color);
-    color: var(--success-color);
+    border-color: var(--primary-600);
+    color: var(--primary-700);
 }
 
+[data-theme="dark"] .add-specific-saemok-option:hover {
+    color: var(--primary-300);
+}
 
 .specific-saemok-priority {
-    font-size: 0.8em;
-    font-weight: 400;
     flex-shrink: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
 }
 
-
-span.description {
-    font-size: 1em;
-    color: var(--medium-color);
+/* -------------------- 세목 고르는 창 -------------------- */
+.modal-content-saemok-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-/* 세목 조건 부여 스위치 스타일 */
-.not-need-switch {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.not-need-switch input {
-  display: none;
-}
-.not-need-switch .slider {
-  width: 40px;
-  height: 20px;
-  border-radius: 20px;
-  background: var(--medium-color);
-  position: relative;
-  transition: 0.3s;
-  cursor: pointer;
-}
-.not-need-switch .slider::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--none-color);
-  transition: 0.3s;
-}
-.not-need-switch input:checked + .slider {
-  background: var(--success-color);
-}
-.not-need-switch input:checked + .slider::before {
-  transform: translateX(20px);
-}
-.not-need-switch .text {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--strong-color);
-}
-
-
-
-/* -------------------- 기타 및 드래그 관련 -------------------- */
-.MokHeader:active {
-    cursor: grabbing;
-}
-
-/* -------------------- 다크모드 스타일 -------------------- */
-:deep([data-theme="dark"]) .MokBlock,
-[data-theme="dark"] .MokBlock {
-    background-color: var(--bg-tertiary);
-    border-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .MokBlock:hover,
-[data-theme="dark"] .MokBlock:hover {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-:deep([data-theme="dark"]) .mok-label,
-[data-theme="dark"] .mok-label {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .mok-priority,
-[data-theme="dark"] .mok-priority {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .mok-toolbar > i,
-[data-theme="dark"] .mok-toolbar > i {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .mok-toolbar > i:hover,
-[data-theme="dark"] .mok-toolbar > i:hover {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .specific-saemok-manage,
-[data-theme="dark"] .specific-saemok-manage {
-    border-top-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .option,
-[data-theme="dark"] .option {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-:deep([data-theme="dark"]) .option-delete,
-[data-theme="dark"] .option-delete {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .option-delete:hover,
-[data-theme="dark"] .option-delete:hover {
-    color: var(--danger-500);
-}
-
-:deep([data-theme="dark"]) span.description,
-[data-theme="dark"] span.description {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .not-need-switch .slider,
-[data-theme="dark"] .not-need-switch .slider {
-    background: var(--gray-600);
-}
-
-:deep([data-theme="dark"]) .not-need-switch .slider::before,
-[data-theme="dark"] .not-need-switch .slider::before {
-    background: var(--gray-300);
-}
-
-:deep([data-theme="dark"]) .not-need-switch input:checked + .slider,
-[data-theme="dark"] .not-need-switch input:checked + .slider {
-    background: var(--success-500);
-}
-
-:deep([data-theme="dark"]) .not-need-switch .text,
-[data-theme="dark"] .not-need-switch .text {
-    color: var(--text-primary);
-}
-
-
-:deep([data-theme="dark"]) .add-specific-saemok-option,
-[data-theme="dark"] .add-specific-saemok-option {
-    background: var(--success-500);
-    color: white;
-}
-
-:deep([data-theme="dark"]) .add-specific-saemok-option:hover,
-[data-theme="dark"] .add-specific-saemok-option:hover {
-    background-color: var(--bg-secondary);
-    color: var(--success-500);
-}
-</style>
-
-<!-- 모달 스타일 (Teleport로 body에 이동하므로 scoped 불가) -->
-<style>
-.modal-specific-saemok {
-    position: fixed;
-    top: 0;
-    left: 0;
+.modal-content-saemok-list .option {
     width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.4);
-    z-index: 999;
-}
-
-.modal-specific-saemok .modal-add-specific-saemok {
-    width: 500px;
-    max-width: 90vw;
-    background-color: var(--none-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    border-radius: 8px;
-    padding: 50px;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 1000;
-}
-
-.modal-specific-saemok .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    margin-bottom: 20px;
-}
-
-.modal-specific-saemok .modal-info {
-    flex: 5;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.modal-specific-saemok .modal-title {
-    font-size: 24px;
-    font-weight: 800;
-    color: var(--strong-color);
-}
-
-.modal-specific-saemok .modal-description {
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--strong-color);
-}
-
-.modal-specific-saemok .modal-description-small {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--medium-color);
-}
-
-.modal-specific-saemok .modal-exit {
-    flex: 1;
-    display: flex;
-    justify-content: flex-end;
-    height: 100%;
+    text-align: left;
     cursor: pointer;
-    color: var(--medium-color);
-    transition: color 0.2s;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast),
+        color var(--transition-fast);
 }
 
-.modal-specific-saemok .modal-exit:hover {
-    color: var(--danger-color);
+/* 고른 것과 안 고른 것을 테두리와 표시로 함께 가른다 — 색만으로는 못 가른다 */
+.modal-content-saemok-list .option.saemok-select {
+    background: var(--bg-active);
+    border-color: var(--primary-300);
+    color: var(--primary-700);
+    font-weight: var(--font-weight-semibold);
 }
 
-.modal-specific-saemok .modal-content-saemok-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    max-height: 400px;
-    overflow-y: auto;
+.modal-content-saemok-list .option.saemok-not-select:hover {
+    background: var(--bg-hover);
 }
 
-.modal-specific-saemok .option {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background-color: var(--light-color);
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    font-weight: 600;
-    color: var(--strong-color);
+[data-theme="dark"] .modal-content-saemok-list .option.saemok-select {
+    border-color: var(--primary-700);
+    color: var(--primary-200);
 }
 
-.modal-specific-saemok .option-label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.modal-specific-saemok .specific-saemok-priority {
-    font-size: 0.8em;
-    font-weight: 400;
-    flex-shrink: 0;
-}
-
-.modal-specific-saemok .saemok-not-select {
-    cursor: pointer;
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.modal-specific-saemok .saemok-not-select:hover {
-    background-color: var(--success-color);
-    color: var(--none-color);
-}
-
-.modal-specific-saemok .saemok-select {
-    cursor: pointer;
-    background-color: var(--success-color);
-    color: var(--none-color);
-    transition: background-color 0.2s, color 0.2s;
-}
-
-.modal-specific-saemok .saemok-select:hover {
-    background-color: var(--light-color);
-    color: var(--strong-color);
-}
-
-/* 다크모드 */
-[data-theme="dark"] .modal-specific-saemok {
-    background-color: rgba(0, 0, 0, 0.6);
-}
-
-[data-theme="dark"] .modal-specific-saemok .modal-add-specific-saemok {
-    background-color: var(--bg-secondary);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .modal-specific-saemok .modal-title {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .modal-specific-saemok .modal-description {
-    color: var(--text-primary);
-}
-
-[data-theme="dark"] .modal-specific-saemok .modal-description-small {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .modal-specific-saemok .modal-exit {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .modal-specific-saemok .modal-exit:hover {
-    color: var(--danger-500);
-}
-
-[data-theme="dark"] .modal-specific-saemok .option {
-    background-color: var(--bg-tertiary);
-    color: var(--text-primary);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-[data-theme="dark"] .modal-specific-saemok .saemok-not-select:hover {
-    background-color: var(--success-500);
-    color: white;
-}
-
-[data-theme="dark"] .modal-specific-saemok .saemok-select {
-    background-color: var(--success-500);
-    color: white;
-}
-
-[data-theme="dark"] .modal-specific-saemok .saemok-select:hover {
-    background-color: var(--bg-tertiary);
-    color: var(--text-primary);
+.picked-count {
+    margin-right: auto;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
 }
 </style>

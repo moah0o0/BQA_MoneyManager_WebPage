@@ -1,847 +1,536 @@
 <template>
     <template v-if="TRNASACTION_LIST != null">
-        <button class="add-transaction" @click="addTransactionModalStatus = true;" v-if="TRNASACTION_LIST.length > 0">
-            <i class="bi bi-file-earmark-plus"></i>
-            <strong>미계정 거래 추가</strong>
-            <small>{{ TRNASACTION_LIST.length }}건</small>
+        <button
+            type="button"
+            class="add-transaction"
+            v-if="TRNASACTION_LIST.length > 0"
+            aria-haspopup="dialog"
+            @click="addTransactionModalStatus = true"
+        >
+            <i class="bi bi-file-earmark-plus" aria-hidden="true"></i>
+            <strong>아직 안 적은 거래</strong>
+            <small class="num">{{ TRNASACTION_LIST.length }}건</small>
         </button>
-        <Teleport to="body">
-            <div class="modal" v-if="addTransactionModalStatus == true">
-                <div class="modal-content">
-                <div class="modal-header">
-                    <div class="meta">
-                        <span class="title">미계정 거래 추가</span>
-                        <span class="description">장부에 기입되지 않은 거래를 추가합니다</span>
-                    </div>
-                    <div class="close">
-                        <button class="close-btn" @click="closeModal({key:'Escape'})"><i class="bi bi-x-square-fill"></i>창 닫기</button>
-                    </div>
-                </div>
-                <div class="modal-function">
-                    <div class="selectTransaction">
-                        <table class="transaction" v-if="TRNASACTION_LIST != null">
-                            <thead>
-                                <tr class="transaction_pin">
-                                    <th style="width:10%;">선택</th>
-                                    <th style="width:10%;">구분</th>
-                                    <th style="width:25%;">일시</th>
-                                    <th style="width:20%;">계좌</th>
-                                    <th style="width:25%;">적요</th>
-                                    <th style="width:10%;">금액</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="transaction in TRNASACTION_LIST" :class="SELECTED_TRANSACTION_LIST.includes(transaction) ? 'transaction_row selected' : 'transaction_row'">
-                                    <td>
-                                        <input class="select" type="checkbox"
-                                        @change="selectTransactionRow(transaction)" 
-                                        :checked="SELECTED_TRANSACTION_LIST.includes(transaction)">
 
-                                    </td>
-                                    <td>{{ transaction.type }}</td>
-                                    <td>{{ datetimeFormatter(transaction.datetime) }}</td>
-                                    <td>{{ transaction.expand.bank.BankType }}<br/><small>{{ transaction.expand.bank.AccountNumber }}</small></td>
-                                    <td>{{ transaction.description }}</td>
-                                    <td>{{ transaction.money.toLocaleString() }}</td>
-
-                                </tr>
-                            </tbody>
-
-                        </table>
-                    </div>
-                    <div class="createSettings">
-                        <div class="option">
-                            <div class="option-line">
-                                <input class="select" type="radio" v-model="ADD_TYPE" value="GENERAL"
-                                    :disabled="SELECTED_TRANSACTION_LIST.length == 0">
-                                <span class="option-name">일반</span>
-                                <span class="option-description">선택한 항목을 모두 장부에 추가합니다.</span>
-                            </div>
-                            <div class="option-line">
-                                <input class="select" type="radio" v-model="ADD_TYPE" value="SPLIT"
-                                :disabled="SELECTED_TRANSACTION_LIST.length !== 1">
-                                <span class="option-name">분할</span>
-                                <span class="option-description">(단일 선택시) 선택한 한 항목을 분할하여 장부에 추가합니다.</span>
-                            </div>
-
-                        </div>
-                        <div class="split">
-                            <div class="spliter" v-if="ADD_TYPE == 'SPLIT'">
-                                <div class="status">
-                                    <div class="money-total">
-                                        <span class="title">분할항목 합계</span>
-                                        <span class="amount">{{ getSplitMoneyListSum().toLocaleString() }}원</span>
-                                    </div>
-                                    <div class="check-vaild">
-                                        <template v-if="isSameSplitMoneyListAndSelectTransaction()">
-                                            문제없이 선택한 거래의 금액과<br/>
-                                            분할금액의 합계가 일치합니다.
-                                        </template>
-                                        <template v-else>
-                                            반드시 분할금액의 합계는<br/>
-                                            {{ SELECTED_TRANSACTION_LIST[0].type == "수입" ? "+" : "-" }}
-                                            {{ SELECTED_TRANSACTION_LIST[0].money.toLocaleString() }}원
-                                        </template>
-                                    </div>
-                                    <div class="split-add-type">
-                                        <div class="select-line">
-                                            <input class="select" type="radio" v-model="SPLIT_ADD_TYPE" value="수입">수입
-                                        </div>
-                                        <div class="select-line">
-                                            <input class="select" type="radio" v-model="SPLIT_ADD_TYPE" value="지출">지출
-                                        </div>
-                                    </div>
-                                    <div class="split-amount">
-                                        <input class="number" type="text" v-model="SPLIT_ADD_MONEY" @input="formatNumber" placeholder="금액">
-                                        <span class="currency">원</span>
-                                        <button class="btn-add" @click="addSplitMoney">추가</button>
-                                    </div>
-
-                                </div>
-                                <div class="split-money-result">
-                                    <div class="split-money" v-for="split_money in SPLIT_ADD_MONEY_LIST">
-                                        <i class="bi bi-trash-fill" @click="removeSplitMoney(split_money)"></i>
-                                        <span class="gwan">
-                                            <div class="money-plus" v-if="split_money.gwan == '수입'">+</div> 
-                                            <div class="money-minus" v-if="split_money.gwan == '지출'">-</div>
-                                            {{split_money.gwan}}
-                                        </span>
-                                        <span class="money">{{ split_money.money.toLocaleString() }}원</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="add" v-if="SELECTED_TRANSACTION_LIST.length">
-                            <button class="add_button" v-if="SELECTED_TRANSACTION_LIST.length != 0 && ADD_TYPE == 'GENERAL'" @click="createLedgerRecord">
-                                <small>{{ SELECTED_TRANSACTION_LIST.length }}건</small>
-                                <strong>추가하시겠습니까?</strong>
-                            </button>
-                            <button class="add_button" v-if="isSameSplitMoneyListAndSelectTransaction() == true && ADD_TYPE == 'SPLIT'" @click="createLedgerRecord">
-                                <small>{{ SPLIT_ADD_MONEY_LIST.length }}건</small>
-                                <strong>추가하시겠습니까?</strong>
-                            </button>
-
-                        </div>
-                    </div>
+        <AppModal
+            v-if="addTransactionModalStatus == true"
+            title="아직 안 적은 거래 추가"
+            icon="bi-file-earmark-plus"
+            description="은행에서 들어왔지만 아직 장부에 옮기지 않은 거래입니다."
+            size="xl"
+            panel-class="add-tx-modal"
+            :close-on-scrim="false"
+            @close="closeModalNow"
+        >
+            <div class="modal-function">
+                <div class="selectTransaction">
+                    <table class="transaction" v-if="TRNASACTION_LIST != null">
+                        <caption class="sr-only">장부에 옮길 거래를 고르세요.</caption>
+                        <thead>
+                            <tr class="transaction_pin">
+                                <th scope="col" style="width:8%;">
+                                    <span class="sr-only">고르기</span>
+                                </th>
+                                <th scope="col" style="width:13%;">구분</th>
+                                <th scope="col" style="width:19%;">일시</th>
+                                <th scope="col" style="width:19%;">계좌</th>
+                                <th scope="col" style="width:25%;">적요</th>
+                                <th scope="col" style="width:16%;" class="r">금액</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="transaction in TRNASACTION_LIST"
+                                :key="transaction.id"
+                                :class="SELECTED_TRANSACTION_LIST.includes(transaction) ? 'transaction_row selected' : 'transaction_row'">
+                                <td>
+                                    <input class="select" type="checkbox"
+                                    @change="selectTransactionRow(transaction)"
+                                    :checked="SELECTED_TRANSACTION_LIST.includes(transaction)"
+                                    :aria-label="`${datetimeFormatter(transaction.datetime)} ${transaction.description} ${transaction.money.toLocaleString()}원 고르기`">
+                                </td>
+                                <td>
+                                    <span :class="['gwan-tag', transaction.type === '수입' ? 'is-income' : 'is-expense']">
+                                        <span aria-hidden="true">{{ transaction.type === '수입' ? '+' : '−' }}</span>{{ transaction.type }}
+                                    </span>
+                                </td>
+                                <td class="num">{{ datetimeFormatter(transaction.datetime) }}</td>
+                                <td>{{ transaction.expand.bank.BankType }}<br/><small class="num">{{ transaction.expand.bank.AccountNumber }}</small></td>
+                                <td>{{ transaction.description }}</td>
+                                <td class="num r">{{ transaction.money.toLocaleString() }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
+                <div class="createSettings">
+                    <fieldset class="option">
+                        <legend class="sr-only">추가 방법</legend>
+                        <!-- 라디오와 설명을 label로 묶는다 — 글자를 눌러도 골라져야 한다 -->
+                        <label class="option-line" :class="{ 'is-off': SELECTED_TRANSACTION_LIST.length == 0 }">
+                            <input class="select" type="radio" v-model="ADD_TYPE" value="GENERAL"
+                                :disabled="SELECTED_TRANSACTION_LIST.length == 0">
+                            <span class="option-name">일반</span>
+                            <span class="option-description">고른 거래를 그대로 장부에 옮깁니다.</span>
+                        </label>
+                        <label class="option-line" :class="{ 'is-off': SELECTED_TRANSACTION_LIST.length !== 1 }">
+                            <input class="select" type="radio" v-model="ADD_TYPE" value="SPLIT"
+                            :disabled="SELECTED_TRANSACTION_LIST.length !== 1">
+                            <span class="option-name">분할</span>
+                            <span class="option-description">한 건만 골랐을 때, 그 거래를 여러 줄로 나눠 적습니다.</span>
+                        </label>
+                    </fieldset>
+
+                    <div class="split">
+                        <div class="spliter" v-if="ADD_TYPE == 'SPLIT'">
+                            <div class="status">
+                                <div class="money-total">
+                                    <span class="title">분할항목 합계</span>
+                                    <span class="amount num">{{ getSplitMoneyListSum().toLocaleString() }}원</span>
+                                </div>
+                                <p class="check-vaild" :class="isSameSplitMoneyListAndSelectTransaction() ? 'is-ok' : 'is-todo'" role="status">
+                                    <template v-if="isSameSplitMoneyListAndSelectTransaction()">
+                                        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                                        고른 거래의 금액과 분할금액의 합계가 맞습니다.
+                                    </template>
+                                    <template v-else>
+                                        <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+                                        분할금액의 합계가
+                                        <b class="num">{{ SELECTED_TRANSACTION_LIST[0].type == "수입" ? "+" : "−" }}{{ SELECTED_TRANSACTION_LIST[0].money.toLocaleString() }}원</b>
+                                        이 되어야 합니다.
+                                    </template>
+                                </p>
+                                <fieldset class="split-add-type">
+                                    <legend class="sr-only">나눠 적을 줄의 구분</legend>
+                                    <label class="select-line">
+                                        <input class="select" type="radio" v-model="SPLIT_ADD_TYPE" value="수입">수입
+                                    </label>
+                                    <label class="select-line">
+                                        <input class="select" type="radio" v-model="SPLIT_ADD_TYPE" value="지출">지출
+                                    </label>
+                                </fieldset>
+                                <div class="split-amount">
+                                    <label class="sr-only" for="split-amount-input">나눠 적을 금액</label>
+                                    <input id="split-amount-input" class="number num" type="text" inputmode="numeric"
+                                        v-model="SPLIT_ADD_MONEY" @input="formatNumber"
+                                        @keydown.enter.prevent="addSplitMoney" placeholder="금액">
+                                    <span class="currency">원</span>
+                                    <button type="button" class="btn-add" @click="addSplitMoney">추가</button>
+                                </div>
+                            </div>
+
+                            <ul class="split-money-result">
+                                <li class="split-money" v-for="(split_money, i) in SPLIT_ADD_MONEY_LIST" :key="i">
+                                    <button
+                                        type="button"
+                                        class="split-remove"
+                                        :aria-label="`${split_money.gwan} ${split_money.money.toLocaleString()}원 지우기`"
+                                        @click="removeSplitMoney(split_money)"
+                                    >
+                                        <i class="bi bi-trash-fill" aria-hidden="true"></i>
+                                    </button>
+                                    <span :class="['gwan-tag', split_money.gwan === '수입' ? 'is-income' : 'is-expense']">
+                                        <span aria-hidden="true">{{ split_money.gwan == '수입' ? '+' : '−' }}</span>{{ split_money.gwan }}
+                                    </span>
+                                    <span class="money num">{{ split_money.money.toLocaleString() }}원</span>
+                                </li>
+                                <li v-if="SPLIT_ADD_MONEY_LIST.length === 0" class="hint">
+                                    나눠 적을 금액을 하나씩 더해 주세요.
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-        </Teleport>
+
+            <template #footer>
+                <span class="foot-count">
+                    {{ SELECTED_TRANSACTION_LIST.length ? `${SELECTED_TRANSACTION_LIST.length}건 고름` : '고른 거래 없음' }}
+                </span>
+                <button type="button" class="btn btn-ghost" @click="closeModalNow">닫기</button>
+                <button
+                    type="button"
+                    class="btn btn-primary"
+                    :disabled="!canSubmit"
+                    @click="createLedgerRecord"
+                >
+                    장부에 추가
+                </button>
+            </template>
+        </AppModal>
     </template>
 </template>
 
 <style scoped>
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(4px);
-    z-index: 2000;
-
-    display: flex;
-    justify-content: center;
+/* ---------- 여는 단추 ---------- */
+.add-transaction {
+    display: inline-flex;
     align-items: center;
+    gap: var(--spacing-2);
+    min-height: 36px;
+    padding: 0 var(--spacing-4);
+    border: 1px solid var(--primary-600);
+    border-radius: var(--border-radius-md);
+    background: var(--primary-600);
+    color: #fff;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.modal-content {
-    width: 1280px;
-    height: 720px;
-    border-radius: 10px;
-    padding: 50px;
-
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+.add-transaction:hover {
+    background: var(--primary-700);
+    border-color: var(--primary-700);
 }
 
-.modal-content > .modal-header {
-    width: 100%;
-    height: 100px;
-
-    display: flex;
-    flex-direction: row;
+.add-transaction small {
+    padding: 1px var(--spacing-2);
+    border-radius: var(--border-radius-full);
+    background: #fff;
+    color: var(--primary-700);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-bold);
 }
 
-.modal-content > .modal-header > .meta {
-    flex:1;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+/* ---------- 창 안 ---------- */
+.modal-function {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: var(--spacing-5);
+    align-items: start;
 }
 
-.modal-content > .modal-header > .meta > span.title {
-    font-size: 30px;
-    font-weight: 800;
-}
-
-.modal-content > .modal-header > .meta > span.description {
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.modal-content > .modal-header > .close {
-    flex:1;
-    width: 100%;
-    display: flex;
-
-    justify-content: end;
-}
-
-.modal-content > .modal-header > .close > button.close-btn {
-    height: 30px;
-    border: unset;
-    background-color: var(--light-color);
-    padding: 5px 20px;
-    
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    font-weight: 600;
-    font-size: 14px;
-
-    border-radius: 10px;
-
-    transition: all 0.25s ease;
-}
-
-.modal-content > .modal-header > .close > button.close-btn > i {
-    font-size: 12px;
-    transition: transform 0.25s ease;
-}
-
-.modal-content > .modal-header > .close > button.close-btn:hover {
-    cursor: pointer;
-    background-color: var(--danger-color);
-    color: white;
-}
-
-.modal-content > .modal-header > .close > button.close-btn:hover > i {
-    transform: rotate(90deg);
-}
-
-.modal-content > .modal-function {
-    display: flex;
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-}
-
-
-.modal-content > .modal-function > .selectTransaction {
-    width: 50%;
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
+.selectTransaction {
+    min-width: 0;
+    max-height: 52vh;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
 }
 
 table.transaction {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;   /* 열 너비 고정 */
-  font-size: 0.8em;
-
-  -webkit-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+    font-size: var(--text-xs);
 }
 
-table.transaction thead,
-table.transaction tbody tr {
-  width: 100%;
-  table-layout: fixed;
+tr.transaction_pin th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 36px;
+    padding: 0 var(--spacing-2);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color-strong);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-semibold);
+    text-align: left;
 }
 
-table.transaction tbody {
-  max-height: 630px;
-  overflow-y: auto;
+table.transaction td {
+    height: 42px;
+    padding: var(--spacing-1) var(--spacing-2);
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-tr.transaction_pin {
-  height: 30px;
-  background-color: var(--light-color);
-  border-top: 1px solid var(--medium-color);
-  border-bottom: 1px solid var(--medium-color);
+table.transaction th.r,
+table.transaction td.r {
+    text-align: right;
 }
 
-tr.transaction_row {
-  height: 65px;
-  font-weight: 500;
-  border-bottom: 1px solid var(--medium-color);
+table.transaction td small {
+    color: var(--text-muted);
+}
+
+tr.transaction_row:hover {
+    background: var(--bg-secondary);
 }
 
 tr.transaction_row.selected {
-  background-color: var(--light-color);
+    background: var(--bg-active);
 }
 
-table.transaction th,
-table.transaction td {
-  position: relative;
-  padding: 0 16px;
-  text-align: left;
-  font-weight: 500;
+table.transaction tbody tr:last-child td {
+    border-bottom: none;
 }
 
-table.transaction tbody tr:hover {
-  background-color: #f9f9f9;
+/* 수입/지출은 기호를 함께 둔다 */
+.gwan-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
 }
 
-table.transaction tbody tr.selected {
-  background-color: var(--light-color);
-}
+.gwan-tag.is-income { color: var(--income-color); }
+.gwan-tag.is-expense { color: var(--expense-color); }
 
-
-
-input.select[type='checkbox'] {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
+input.select[type='checkbox'],
+input.select[type='radio'] {
     width: 16px;
     height: 16px;
-    border: 1px solid var(--medium-color);
-    border-radius: 3px;
+    flex-shrink: 0;
     cursor: pointer;
-    position: relative;
-
-    background-color: var(--none-color);
-    vertical-align: middle;
-    transition: all 0.15s ease;
 }
 
-input.select[type='checkbox']:hover {
-    border-color: var(--strong-color);
-}
-
-input.select[type='checkbox']:checked {
-    background-color: var(--strong-color);
-    border-color: var(--strong-color);
-}
-
-input.select[type='checkbox']:checked::after {
-    content: "\F26E";
-    font-family: "bootstrap-icons";
-    color: var(--none-color);
-    font-size: 12px;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-
-
-.modal-content > .modal-function > .createSettings {
-    width: 50%;
-    height: 100%;
+/* ---------- 오른쪽: 방법 고르기 ---------- */
+.createSettings {
     display: flex;
     flex-direction: column;
-    gap: 30px;
+    gap: var(--spacing-4);
+    min-width: 0;
+}
+
+.option {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.option-line {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: var(--spacing-1) var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+}
+
+.option-line:hover:not(.is-off) {
+    background: var(--bg-hover);
+}
+
+/* 고를 수 없는 줄은 왜 못 고르는지 설명이 남아 있어야 한다 — 숨기지 않고 흐리게 둔다 */
+.option-line.is-off {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.option-name {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+.option-description {
+    grid-column: 2;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+/* ---------- 분할 ---------- */
+.spliter {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+}
+
+.status {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3);
+    padding: var(--spacing-4);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+}
+
+.money-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--spacing-2);
+}
+
+.money-total .title {
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+}
+
+.money-total .amount {
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+/*
+    금액이 맞는지 알리는 자리.
+    아직 못 맞춘 것은 잘못한 것이 아니므로 빨강 대신 안내 색을 쓴다.
+*/
+.check-vaild {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-2);
+    margin: 0;
+    padding: var(--spacing-2) var(--spacing-3);
+    border-radius: var(--border-radius-md);
+    font-size: var(--text-xs);
+    line-height: var(--line-height-normal);
+}
+
+.check-vaild.is-ok {
+    background: var(--success-50);
+    color: var(--success-600);
+}
+
+.check-vaild.is-todo {
+    background: var(--info-50);
+    color: var(--info-600);
+}
+
+[data-theme="dark"] .check-vaild.is-ok {
+    background: rgb(34 197 94 / 0.14);
+    color: var(--success-400);
+}
+
+[data-theme="dark"] .check-vaild.is-todo {
+    background: rgb(59 130 246 / 0.14);
+    color: var(--income-color);
+}
+
+.split-add-type {
+    display: flex;
+    gap: var(--spacing-4);
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.select-line {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    font-size: var(--text-sm);
+    cursor: pointer;
+}
+
+.split-amount {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+}
+
+.split-amount .number {
+    flex: 1;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 var(--spacing-3);
+    border: 1px solid var(--border-color-strong);
+    border-radius: var(--border-radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    text-align: right;
+}
+
+.split-amount .number:focus {
+    outline: none;
+    border-color: var(--primary-600);
+    box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+[data-theme="dark"] .split-amount .number:focus {
+    box-shadow: 0 0 0 3px var(--primary-950);
+}
+
+.split-amount .currency {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+}
+
+.btn-add {
+    min-height: 34px;
+    padding: 0 var(--spacing-4);
+    border: 1px solid var(--border-color-strong);
+    border-radius: var(--border-radius-md);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.btn-add:hover {
+    background: var(--bg-hover);
+}
+
+.split-money-result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 200px;
     overflow-y: auto;
 }
 
-.modal-content > .modal-function > .createSettings > .option {
-    width: 100%;
-    flex-shrink: 0;
-    display: flex;
-
-    flex-direction: column;
-    gap:20px;
-
-    padding-left: 50px;
-    box-sizing: border-box;
-}
-
-.modal-content > .modal-function > .createSettings > .split {
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-
-    flex-direction: column;
-    gap:20px;
-
-    padding-left: 50px;
-    box-sizing: border-box;
-
-}
-
-.modal-content > .modal-function > .createSettings > .add {
-    width: 100%;
-    flex-shrink: 0;
-    display: flex;
-
-    flex-direction: column;
-    gap:20px;
-
-    padding-left: 50px;
-    box-sizing: border-box;
-
-}
-
-
-.modal-content > .modal-function > .createSettings > .option > .option-line{
-    width: 100%;
-    display: flex;
-    gap: 8px;
-
-    align-items: center;
-}
-
-.modal-content > .modal-function > .createSettings > .option > .option-line > span.option-name{
-    font-size: 19px;
-    font-weight: 700;
-}
-
-.modal-content > .modal-function > .createSettings > .option > .option-line > span.option-description{
-    font-size: 15px;
-    font-weight: 500;
-}
-
-
-input.select[type='radio'] {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-
-    margin: 0;
-    width: 14px;
-    height: 14px;
-    border: 1px solid var(--medium-color);
-    border-radius: 30px;
-    cursor: pointer;
-    position: relative;
-
-    background-color: var(--none-color);
-    vertical-align: middle;
-    transition: all 0.15s ease;
-}
-
-input.select[type='radio']:hover {
-    border-color: var(--strong-color);
-}
-
-input.select[type='radio']:checked {
-    background-color: var(--strong-color);
-    border-color: var(--strong-color);
-}
-
-input.select[type='radio']:checked::after {
-    content: "\F26E";
-    font-family: "bootstrap-icons";
-    color: var(--none-color);
-    font-size: 12px;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter {
-    width: 100%;
-    height: 100%;
-    min-height: 400px;
-    background-color: var(--light-color);
-    border-radius: 15px;
-
-    display: flex;
-    flex-direction: row;
-
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status {
-    width: 50%;
-    height: 100%;
-    
-    padding-left: 30px;
-    padding-top: 30px;
-    padding-bottom: 30px;
-
-    box-sizing: border-box;
-
-    display: flex;
-    flex-direction: column;
-    justify-content: end;
-
-    gap:20px;
-
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .money-total {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .money-total > span.amount, 
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .money-total > span.title {
-    font-size: 20px;
-    font-weight: 700;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .check-vaild {
-    width: 100%;
-    font-weight: 500;
-    font-size: 15px;
-    line-height: 20px;
-}
-
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-add-type {
-    width: 100%;
-
-    display: flex;
-    gap: 15px;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-add-type > .select-line {
+.split-money {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: 700;
-    font-size: 15px;
+    gap: var(--spacing-3);
+    padding: var(--spacing-2) var(--spacing-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    font-size: var(--text-sm);
 }
 
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount {
-    width: 100%;
-    display: flex;
-    gap: 5px;
+.split-money .money {
+    margin-left: auto;
+    font-weight: var(--font-weight-semibold);
 }
 
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > .number{
-    all:unset;
-    font-size: 16px;
-    font-weight: 700;
-    text-align: right;
-    width: 60px;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > span.currency{
-    font-size: 16px;
-    font-weight: 700;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > button.btn-add {
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-
-  font-size: 10px;
-  font-weight: 600;
-
-
-  margin-left:5px;
-  padding:2px 7px;
-  background-color: var(--strong-color);
-  color: var(--none-color);
-
-  transition: all 0.2s ease;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > button.btn-add:hover {
-  background-color: #444;
-  color: white;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > button.btn-add:active {
-  transform: scale(0.96);
-}
-
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result {
-    width: 50%;
-    height: 100%;
-    
-    padding-right: 30px;
-    padding-top: 30px;
-    padding-bottom: 30px;
-
-    box-sizing: border-box;
-    overflow-y: scroll;
-
-    display: flex;
-    align-items: end;
-    gap: 10px;
-
-    flex-direction: column;
-
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money {
-    background-color: var(--none-color);
-    border-radius: 5px;
-
-    width: 80%;
-    min-height: 30px;
-
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-}
-
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > i {
-    width: 20%;
-    height: 100%;
-    display: flex;
-    justify-content: end;
-    font-size: 14px;
-    align-items: center;
-    cursor: pointer;
-    color: var(--medium-color);
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > i:hover {
-    color: var(--strong-color);
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.gwan {
-    width: 18%;
-    text-align: center;
-    font-size: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-weight: 600;
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.gwan > .money-plus {
-    color: var(--danger-color);
-
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.gwan > .money-minus {
-    color: var(--primary-color);
-}
-
-.modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.money {
-    width: 62%;
-    text-align: right;
-    font-weight: 600;
-    font-size: 14px;
-    padding-right: 25px;
-    box-sizing: border-box;
-}
-
-
-button.add_button {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  
-  width: 100%;
-  padding: 8px 20px;
-  border-radius: 10px;
-  border: none;
-  cursor: pointer;
-  background-color: var(--strong-color);
-  color: var(--none-color); 
-}
-
-button.add_button > small {
-  font-size: 13px;
-  font-weight: 600;
-  background-color: white;
-  color: var(--strong-color);
-  padding: 4px;
-  border-radius:10px;
-}
-
-button.add_button > strong{
-  display: flex;
-  align-items: center;
-  font-weight: 500;
-  font-size: 16px;
-}
-
-button.add-transaction {
-    all: unset;
-
-    display: flex;
+.split-remove {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-
-    width: 200px;
-    padding: 8px 12px;
-
-
-    border-radius: 8px;
-    background-color: var(--light-color);
-    color: var(--primary-color);
-    cursor: pointer;
-
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
- button.add-transaction:hover {
-    background-color: var(--primary-color);
-    color: var(--light-color);
+.split-remove:hover {
+    background: var(--danger-50);
+    color: var(--danger-600);
 }
 
-button.add-transaction:hover i {
-    color: var(--light-color);
+[data-theme="dark"] .split-remove:hover {
+    background: rgb(239 68 68 / 0.16);
+    color: var(--danger-300);
 }
 
-button.add-transaction:hover small {
-    background-color: var(--none-color);
-    color: var(--primary-color);
+.foot-count {
+    margin-right: auto;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
 }
 
-button.add-transaction:active {
-    transform: scale(0.97);
+/* ---------- 반응형 ---------- */
+@media (max-width: 900px) {
+    .modal-function {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .selectTransaction {
+        max-height: 40vh;
+    }
 }
-
-
-button.add-transaction > small {
-  font-size: 13px;
-  font-weight: 600;
-  background-color: var(--primary-color);
-  color: var(--none-color);
-  padding: 4px;
-  border-radius:10px;
-}
-
-button.add-transaction > strong{
-  display: flex;
-  align-items: center;
-  font-weight: 700;
-  font-size: 16px;
-}
-
-/* -------------------- 다크모드 스타일 -------------------- */
-:deep([data-theme="dark"]) .modal-content,
-[data-theme="dark"] .modal-content {
-    background-color: var(--bg-secondary);
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-header > .meta > span.title,
-[data-theme="dark"] .modal-content > .modal-header > .meta > span.title {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-header > .meta > span.description,
-[data-theme="dark"] .modal-content > .modal-header > .meta > span.description {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-header > .close > button.close-btn,
-[data-theme="dark"] .modal-content > .modal-header > .close > button.close-btn {
-    background-color: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) tr.transaction_pin,
-[data-theme="dark"] tr.transaction_pin {
-    background-color: var(--bg-tertiary);
-    border-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) tr.transaction_row,
-[data-theme="dark"] tr.transaction_row {
-    border-color: var(--border-color);
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) tr.transaction_row.selected,
-[data-theme="dark"] tr.transaction_row.selected {
-    background-color: var(--bg-tertiary);
-}
-
-:deep([data-theme="dark"]) table.transaction tbody tr:hover,
-[data-theme="dark"] table.transaction tbody tr:hover {
-    background-color: var(--bg-tertiary);
-}
-
-:deep([data-theme="dark"]) input.select[type='checkbox'],
-[data-theme="dark"] input.select[type='checkbox'] {
-    background-color: var(--bg-tertiary);
-    border-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) input.select[type='radio'],
-[data-theme="dark"] input.select[type='radio'] {
-    background-color: var(--bg-tertiary);
-    border-color: var(--border-color);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .option > .option-line > span.option-name,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .option > .option-line > span.option-name {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .option > .option-line > span.option-description,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .option > .option-line > span.option-description {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter {
-    background-color: var(--bg-tertiary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .money-total > span,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .money-total > span {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .check-vaild,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .check-vaild {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-add-type > .select-line,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-add-type > .select-line {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > .number,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > .number {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > span.currency,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .status > .split-amount > span.currency {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money {
-    background-color: var(--bg-secondary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.gwan,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.gwan {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.money,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > span.money {
-    color: var(--text-primary);
-}
-
-:deep([data-theme="dark"]) .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > i,
-[data-theme="dark"] .modal-content > .modal-function > .createSettings > .split > .spliter > .split-money-result > .split-money > i {
-    color: var(--text-secondary);
-}
-
-:deep([data-theme="dark"]) button.add-transaction,
-[data-theme="dark"] button.add-transaction {
-    background-color: var(--bg-tertiary);
-    color: var(--primary-500);
-}
-
-:deep([data-theme="dark"]) button.add-transaction:hover,
-[data-theme="dark"] button.add-transaction:hover {
-    background-color: var(--primary-600);
-    color: var(--text-primary);
-}
-
 </style>
 
 <script>
@@ -849,8 +538,11 @@ import PocketBase from 'pocketbase';
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__);
 
 import './style.css'
+import AppModal from '../layout/AppModal.vue'
 
 export default {
+    components: { AppModal },
+
     props: ['filterStartDate', 'filterEndDate'],
     emits: ['refresh'],   
 
@@ -868,6 +560,15 @@ export default {
         }
     },
 
+    computed: {
+        /** 추가할 수 있는 때인지 한곳에서 정한다 — 단추 두 개를 번갈아 감추던 자리다 */
+        canSubmit() {
+            if (this.ADD_TYPE === 'GENERAL') return this.SELECTED_TRANSACTION_LIST.length > 0
+            if (this.ADD_TYPE === 'SPLIT') return this.isSameSplitMoneyListAndSelectTransaction() === true
+            return false
+        }
+    },
+
     watch: {
         async filterStartDate(){
             await this.getNotAddedTransactionList()
@@ -879,12 +580,7 @@ export default {
     },  
     
     async mounted(){
-        window.addEventListener('keydown', this.closeModal)
         await this.getNotAddedTransactionList()
-    },  
-
-    beforeUnmount(){
-        window.removeEventListener('keydown', this.closeModal)
     },
 
     methods: {
@@ -893,11 +589,14 @@ export default {
             return str.substring(0, 12).replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/,"$1-$2-$3 $4:$5")
         },
 
+        /** 창을 닫을 때마다 목록을 다시 맞춘다 — 안에서 추가한 것이 밖에도 보여야 한다 */
+        closeModalNow() {
+            this.$emit("refresh")
+            this.addTransactionModalStatus = false
+        },
+
         closeModal(e) {
-            if (e.key === 'Escape') {
-                this.$emit("refresh")
-                this.addTransactionModalStatus = false
-            }
+            if (e.key === 'Escape') this.closeModalNow()
         },
 
         async getNotAddedTransactionList(){            
@@ -1034,7 +733,7 @@ export default {
             this.SPLIT_ADD_MONEY = ''
             this.SPLIT_ADD_MONEY_LIST = []
 
-            this.closeModal({key:"Escape"})
+            this.closeModalNow()
         }
         
     }
