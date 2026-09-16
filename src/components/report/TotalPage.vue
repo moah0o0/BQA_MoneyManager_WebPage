@@ -115,7 +115,7 @@ export default {
                 })
 
                 hang.mokList.forEach(mok => {
-                    rows.push({ key: `mok-${mok.id}`, kind: 'mok', mok })
+                    rows.push({ key: `mok-${mok.id}`, kind: 'mok', mok, inGroup: true })
                 })
             })
 
@@ -124,6 +124,7 @@ export default {
                     key: 'total',
                     kind: 'total',
                     groupEnd: true,
+                    keepWithPrev: true,
                     income: this.FINANCIAL_SUMMARY.incomeTotal,
                     expense: this.FINANCIAL_SUMMARY.expenseTotal,
                     difference: this.FINANCIAL_SUMMARY.differenceTotal,

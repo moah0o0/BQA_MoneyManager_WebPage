@@ -1,16 +1,15 @@
 <template>
     <div class="tab-root none-select">
-        <div class="page-head">
-            <div>
-                <h1 class="page-title">계정과목</h1>
-                <p class="page-desc">장부에서 고를 항 · 목 · 세목을 짭니다. 이름을 누르면 그 자리에서 고칩니다.</p>
-            </div>
-            <div class="acts">
-                <div class="search-bar">
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                    <label class="sr-only" for="assets-search">계정과목 검색</label>
-                    <input id="assets-search" type="search" v-model="query" class="search-input" placeholder="이름으로 찾기">
-                </div>
+        <!--
+            머리는 한 줄로 줄인다. 이 화면에서 봐야 하는 것은 과목 목록이지 제목이 아니다.
+        -->
+        <div class="head">
+            <h1 class="page-title">계정과목</h1>
+            <p class="page-desc">장부에서 고를 항 · 목 · 세목을 짭니다. 이름을 누르면 그 자리에서 고칩니다.</p>
+            <div class="search-bar">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <label class="sr-only" for="assets-search">계정과목 검색</label>
+                <input id="assets-search" type="search" v-model="query" class="search-input" placeholder="이름으로 찾기">
             </div>
         </div>
 
@@ -21,39 +20,42 @@
         </p>
 
         <template v-if="loaded">
-            <!--
-                한 화면에 다 놓는다.
-                세목은 겹창 안에 있어서 열어 보기 전에는 무엇이 있는지 알 수 없었고,
-                항 · 목은 가로로 밀어 봐야 해서 전체 꼴이 한눈에 들어오지 않았다.
-            -->
             <div class="assets-grid">
                 <section class="panel" aria-labelledby="hang-mok-title">
-                    <header>
+                    <!-- 칸 이름 · 개수 · 손댈 단추를 한 줄에 모은다 -->
+                    <div class="panel-bar">
                         <h2 id="hang-mok-title">항 · 목</h2>
-                        <div class="head-right">
-                            <span class="count num">{{ HANGS.length }}항 · {{ activeMokCount }}목</span>
+                        <span class="count num">{{ HANGS.length }}항 · {{ activeMokCount }}목</span>
+
+                        <div class="bar-acts">
                             <!-- 잠근 목은 평소엔 안 보인다. 풀려면 여기서 꺼내 본다 -->
                             <button
                                 v-if="lockedCount > 0"
                                 type="button"
-                                class="chip"
+                                class="bar-btn"
                                 :class="{ on: showLocked }"
                                 :aria-pressed="showLocked ? 'true' : 'false'"
-                                @click="showLocked = !showLocked"
+                                :title="showLocked ? '잠근 목 감추기' : '잠근 목 꺼내 보기'"
+                            @click="showLocked = !showLocked"
                             >
                                 <i class="bi bi-lock-fill" aria-hidden="true"></i>
                                 잠근 목 <span class="num">{{ lockedCount }}</span>
                             </button>
-                            <button type="button" class="btn btn-secondary btn-sm" @click="toggleAll">
+                            <button type="button" class="bar-btn" :title="allOpen ? '모두 접기' : '모두 펼치기'" @click="toggleAll">
+                                <i :class="['bi', allOpen ? 'bi-chevron-contract' : 'bi-chevron-expand']" aria-hidden="true"></i>
                                 {{ allOpen ? '모두 접기' : '모두 펼치기' }}
                             </button>
+                            <button v-if="canEdit && !query" type="button" class="bar-btn primary" @click="createHang">
+                                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                                항 더하기
+                            </button>
                         </div>
-                    </header>
+                    </div>
 
                     <ul class="tree">
                         <template v-for="hang in visibleHangs" :key="hang.id">
                             <li class="row row-hang">
-                                <!-- 39목이 통째로 펼쳐져 있으면 한 항을 보려고 한참 굴려야 한다 -->
+                                <!-- 목이 서른 넘게 펼쳐져 있으면 한 항을 보려고 한참 굴려야 한다 -->
                                 <button
                                     type="button"
                                     class="fold"
@@ -61,7 +63,7 @@
                                     :aria-label="`${hang.label} ${isOpen(hang.id) ? '접기' : '펼치기'}`"
                                     @click="toggleFold(hang.id)"
                                 >
-                                    <i :class="['bi', isOpen(hang.id) ? 'bi-chevron-down' : 'bi-chevron-right']" aria-hidden="true"></i>
+                                    <i :class="['bi', isOpen(hang.id) ? 'bi-caret-down-fill' : 'bi-caret-right-fill']" aria-hidden="true"></i>
                                 </button>
                                 <span class="priority num">{{ zeroPad(hang.priority, 2) }}</span>
                                 <InlineEditor
@@ -71,9 +73,14 @@
                                     @change="rename('Hang', hang, $event)"
                                 />
                                 <span v-else class="name name-hang">{{ hang.label }}</span>
-                                <span class="mok-count num">{{ moksOf(hang.id).length }}목</span>
+                                <span class="mok-count num">{{ moksOf(hang.id).length }}</span>
 
                                 <div class="row-acts" v-if="canEdit && !query">
+                                    <button type="button" class="icon-btn"
+                                        :aria-label="`${hang.label}에 목 더하기`" title="목 더하기"
+                                        @click="addMokTo(hang.id)">
+                                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                                    </button>
                                     <button type="button" class="icon-btn" :disabled="isFirst(HANGS, hang)"
                                         :aria-label="`${hang.label} 위로`" title="위로"
                                         @click="move('Hang', HANGS, hang, -1)">
@@ -94,19 +101,16 @@
 
                             <li v-for="mok in (isOpen(hang.id) ? moksOf(hang.id) : [])" :key="mok.id"
                                 class="row row-mok" :class="{ 'is-locked': mok.lock }">
-                                <span class="indent" aria-hidden="true"></span>
                                 <span class="priority num">{{ zeroPad(mok.priority, 3) }}</span>
                                 <!-- 잠근 목은 이름도 못 고친다. 풀고 나서 고쳐야 한다 -->
+                                <i v-if="mok.lock" class="bi bi-lock-fill lock-mark" aria-hidden="true"></i>
                                 <InlineEditor
                                     v-if="canEdit && !mok.lock"
                                     :value="mok.label"
                                     class="name"
                                     @change="rename('Mok', mok, $event)"
                                 />
-                                <span v-else class="name">{{ mok.label }}</span>
-                                <span v-if="mok.lock" class="lock-badge">
-                                    <i class="bi bi-lock-fill" aria-hidden="true"></i> 잠김
-                                </span>
+                                <span v-else class="name">{{ mok.label }}<span v-if="mok.lock" class="sr-only"> (잠김)</span></span>
 
                                 <div class="row-acts" v-if="canEdit && !query">
                                     <button type="button" class="icon-btn"
@@ -137,32 +141,31 @@
                                 </div>
                             </li>
 
-                            <li v-if="canEdit && !query && isOpen(hang.id)" :key="`add-${hang.id}`" class="row row-add">
-                                <span class="indent" aria-hidden="true"></span>
-                                <button type="button" class="add-btn" @click="createMok(hang.id)">
-                                    <i class="bi bi-plus-lg" aria-hidden="true"></i> 목 더하기
-                                </button>
+                            <li v-if="isOpen(hang.id) && moksOf(hang.id).length === 0" :key="`none-${hang.id}`" class="row row-none">
+                                아직 목이 없습니다
                             </li>
                         </template>
 
                         <li v-if="visibleHangs.length === 0" class="empty">
-                            {{ query ? '찾는 이름이 없습니다.' : '아직 항이 없습니다. 하나 더해 주세요.' }}
-                        </li>
-
-                        <li v-if="canEdit && !query" class="row row-add row-add-top">
-                            <button type="button" class="add-btn" @click="createHang">
-                                <i class="bi bi-plus-lg" aria-hidden="true"></i> 항 더하기
-                            </button>
+                            {{ query ? '찾는 이름이 없습니다.' : '아직 항이 없습니다. 오른쪽 위 + 항을 눌러 주세요.' }}
                         </li>
                     </ul>
                 </section>
 
                 <section class="panel" aria-labelledby="saemok-title">
-                    <header>
+                    <div class="panel-bar">
                         <h2 id="saemok-title">세목</h2>
                         <span class="count num">{{ SAEMOKS.length }}개</span>
-                    </header>
-                    <p class="hint">모든 목이 함께 씁니다.</p>
+
+                        <div class="bar-acts">
+                            <button v-if="canEdit && !query" type="button" class="bar-btn primary" @click="createSaemok">
+                                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                                세목 더하기
+                            </button>
+                        </div>
+                    </div>
+
+                    <p class="panel-note">모든 목이 함께 씁니다.</p>
 
                     <ul class="tree">
                         <li v-for="saemok in visibleSaemoks" :key="saemok.id" class="row row-saemok">
@@ -199,12 +202,6 @@
 
                         <li v-if="visibleSaemoks.length === 0" class="empty">
                             {{ query ? '찾는 이름이 없습니다.' : '아직 세목이 없습니다.' }}
-                        </li>
-
-                        <li v-if="canEdit && !query" class="row row-add">
-                            <button type="button" class="add-btn" @click="createSaemok">
-                                <i class="bi bi-plus-lg" aria-hidden="true"></i> 세목 더하기
-                            </button>
                         </li>
                     </ul>
                 </section>
@@ -471,6 +468,12 @@ export default {
             }
         },
 
+        /** 항 줄의 + 단추. 접혀 있으면 먼저 펼쳐야 새로 생긴 목이 보인다 */
+        async addMokTo(hangId) {
+            if (!this.isOpen(hangId)) this.toggleFold(hangId)
+            await this.createMok(hangId)
+        },
+
         async createMok(hangId) {
             if (!this.canEdit) return
             try {
@@ -576,7 +579,7 @@ export default {
 .tab-root {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-4);
+    gap: var(--spacing-3);
 }
 
 .none-select {
@@ -584,16 +587,40 @@ export default {
     -webkit-user-select: none;
 }
 
+/*
+    머리 한 줄. 제목 · 설명 · 찾기를 한 줄에 놓는다.
+    이 화면에서 봐야 하는 것은 목록이므로 머리가 세로로 자리를 먹으면 안 된다.
+*/
+.head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--spacing-2) var(--spacing-3);
+}
+
+.head .page-title {
+    margin: 0;
+    font-size: var(--text-xl);
+}
+
+.head .page-desc {
+    margin: 0;
+    flex: 1;
+    min-width: 200px;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
 .search-bar {
     position: relative;
-    width: 240px;
+    width: 220px;
     max-width: 100%;
 }
 
 .search-input {
     width: 100%;
-    min-height: 34px;
-    padding: 0 var(--spacing-3) 0 32px;
+    min-height: 32px;
+    padding: 0 var(--spacing-3) 0 30px;
     border: 1px solid var(--border-color-strong);
     border-radius: var(--border-radius-md);
     background: var(--bg-primary);
@@ -622,17 +649,15 @@ export default {
 }
 
 /*
-   항·목과 세목을 나란히 둔다. 세목은 겹창 안에 있어서 열기 전엔 보이지 않았다.
-
-   두 칸은 화면 높이에 맞추고 안에서 굴린다.
-   그냥 쌓아 두면 항이 다섯에 목이 서른아홉만 되어도 페이지가 세 화면 길이가 되고,
-   짧은 세목 칸 아래로 천백 픽셀이 빈 채로 남는다.
+    항·목과 세목을 나란히 둔다. 세목은 겹창 안에 있어서 열기 전엔 보이지 않았다.
+    두 칸은 화면 높이에 맞추고 안에서 굴린다 — 그냥 쌓으면 페이지가 세 화면 길이가 된다.
+    세목은 짧은 낱말 목록이라 좁아도 된다. 남는 너비는 항·목에 준다.
 */
 .assets-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    gap: var(--spacing-4);
-    height: calc(100vh - 230px);
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+    gap: var(--spacing-3);
+    height: calc(100vh - 168px);
     min-height: 420px;
 }
 
@@ -641,52 +666,128 @@ export default {
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    background: var(--bg-primary);
 }
 
-.panel > header {
-    align-items: baseline;
-    flex-shrink: 0;
-}
-
-.head-right {
+/* 칸 이름 · 개수 · 단추를 한 줄에 모은다 */
+.panel-bar {
     display: flex;
     align-items: center;
     gap: var(--spacing-2);
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 0 var(--spacing-2) 0 var(--spacing-3);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
 }
 
-.panel .count {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
+.panel-bar h2 {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
     white-space: nowrap;
 }
 
-.panel > .hint {
+.panel-bar .count {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.bar-acts {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
     flex-shrink: 0;
+    margin-left: auto;
+}
+
+.bar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 26px;
+    padding: 0 var(--spacing-2);
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.bar-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* 잠근 목을 꺼내 보는 중이라는 것은 눈에 띄어야 한다 — 평소 화면과 다른 상태다 */
+.bar-btn.on {
+    background: var(--warning-50);
+    border-color: var(--warning-200);
+    color: var(--warning-700);
+}
+
+[data-theme="dark"] .bar-btn.on {
+    background: rgb(161 98 7 / 0.22);
+    border-color: rgb(253 230 138 / 0.35);
+    color: var(--warning-200);
+}
+
+.bar-btn.primary {
+    border-color: var(--border-color-strong);
+    color: var(--primary-700);
+}
+
+.bar-btn.primary:hover {
+    border-color: var(--primary-600);
+    background: var(--bg-active);
+}
+
+[data-theme="dark"] .bar-btn.primary {
+    color: var(--primary-300);
+}
+
+.panel-note {
+    flex-shrink: 0;
+    margin: 0;
+    padding: var(--spacing-2) var(--spacing-3) 0;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
 }
 
 .tree {
     flex: 1;
     min-height: 0;
-    display: flex;
-    flex-direction: column;
     margin: 0;
-    padding: 0;
+    padding: var(--spacing-1) 0 var(--spacing-3);
     list-style: none;
     overflow-y: auto;
     overscroll-behavior: contain;
 }
 
+/*
+    줄은 촘촘하게. 서른 넘는 목을 한 화면에 담아야 전체 꼴이 눈에 들어온다.
+    예전에는 36px에 여백까지 더해 열 줄밖에 안 보였다.
+*/
 .row {
     display: flex;
     align-items: center;
     gap: var(--spacing-2);
-    min-height: 36px;
-    padding: var(--spacing-1) var(--spacing-1);
-    border-radius: var(--border-radius-sm);
+    min-height: 28px;
+    padding: 0 var(--spacing-2) 0 var(--spacing-3);
 }
 
 .row:hover {
-    background: var(--bg-secondary);
+    background: var(--bg-hover);
 }
 
 /* 굴려도 어느 항을 보고 있는지 알아야 한다 */
@@ -694,28 +795,33 @@ export default {
     position: sticky;
     top: 0;
     z-index: 1;
-    margin-top: var(--spacing-2);
+    min-height: 32px;
+    padding-left: var(--spacing-2);
     border-top: 1px solid var(--border-color);
-    padding-top: var(--spacing-2);
-    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
 }
 
 .row-hang:hover {
-    background: var(--bg-primary);
+    background: var(--bg-tertiary);
+}
+
+.tree > .row-hang:first-child {
+    border-top: none;
 }
 
 .fold {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
     border: none;
     border-radius: var(--border-radius-sm);
     background: transparent;
     color: var(--text-muted);
-    font-size: var(--text-xs);
+    font-size: 10px;
 }
 
 .fold:hover {
@@ -723,40 +829,25 @@ export default {
     color: var(--text-primary);
 }
 
-.mok-count {
-    flex-shrink: 0;
-    margin-left: var(--spacing-2);
-    padding: 1px var(--spacing-2);
-    border-radius: var(--border-radius-full);
-    background: var(--bg-tertiary);
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-semibold);
-}
-
-.tree > .row-hang:first-child {
-    margin-top: 0;
-    border-top: none;
-}
-
-.indent {
-    display: inline-block;
-    flex-shrink: 0;
-    /* 항 줄의 접기 단추 자리만큼 맞춰 들여쓴다 */
-    width: calc(22px + var(--spacing-2));
-}
-
+/*
+    번호는 이름 바로 왼쪽에 붙인다. 사이가 벌어지면 눈이 매 줄 건너뛰어야 한다.
+    자릿수가 세로로 맞도록 고정폭 숫자를 쓴다.
+*/
 .priority {
     flex-shrink: 0;
-    min-width: 34px;
+    font-variant-numeric: tabular-nums;
     font-size: var(--text-xs);
     color: var(--text-muted);
 }
 
-/* 이름은 글자만큼만 차지한다 — 줄 끝까지 늘리면 손을 얹었을 때 강조가 줄 전체로 퍼진다 */
+.row-mok .priority,
+.row-saemok .priority {
+    /* 항의 접기 단추 자리만큼 들여쓴다 — 목이 항에 딸린 것이 보이게 */
+    margin-left: calc(20px + var(--spacing-2));
+}
+
 .name {
     min-width: 0;
-    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -765,14 +856,25 @@ export default {
 }
 
 .name-hang {
-    font-size: var(--text-base);
+    font-size: var(--text-sm);
     font-weight: var(--font-weight-bold);
+}
+
+/* 몇 목인지는 곁다리다 — 이름을 가리지 않게 조용히 둔다 */
+.mok-count {
+    flex-shrink: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+}
+
+.mok-count::after {
+    content: '목';
 }
 
 /* 손댈 것이 있다는 건 그 줄에 머물 때만 보이면 된다 — 늘 보이면 이름이 묻힌다 */
 .row-acts {
     display: flex;
-    gap: 1px;
+    gap: 0;
     flex-shrink: 0;
     margin-left: auto;
     opacity: 0;
@@ -788,18 +890,18 @@ export default {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border: none;
     border-radius: var(--border-radius-sm);
     background: transparent;
     color: var(--text-muted);
-    font-size: var(--text-xs);
+    font-size: 11px;
     transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .icon-btn:hover:not(:disabled) {
-    background: var(--bg-hover);
+    background: var(--bg-active);
     color: var(--text-primary);
 }
 
@@ -818,42 +920,19 @@ export default {
     color: var(--danger-300);
 }
 
-.row-add:hover {
-    background: transparent;
-}
-
-.row-add-top {
-    margin-top: var(--spacing-2);
-    border-top: 1px solid var(--border-color);
-    padding-top: var(--spacing-3);
-}
-
-.add-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-1);
-    min-height: 28px;
-    padding: 0 var(--spacing-3);
-    border: 1px dashed var(--border-color-strong);
-    border-radius: var(--border-radius-sm);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-semibold);
-    transition: border-color var(--transition-fast), color var(--transition-fast);
-}
-
-.add-btn:hover {
-    border-color: var(--primary-600);
-    color: var(--primary-700);
-}
-
-[data-theme="dark"] .add-btn:hover {
-    color: var(--primary-300);
-}
-
 .badge {
     margin-left: var(--spacing-2);
+}
+
+/* 목이 하나도 없는 항은 빈칸이 아니라 그렇다고 말해 준다 */
+.row-none {
+    padding-left: calc(var(--spacing-3) + 20px + var(--spacing-2));
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+}
+
+.row-none:hover {
+    background: transparent;
 }
 
 /* 잠근 목은 '지워진 것'이 아니라 '쓰지 않는 것'이다 — 흐리게 두되 읽히게 */
@@ -862,18 +941,15 @@ export default {
     color: var(--text-muted);
 }
 
-.lock-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
+.lock-mark {
     flex-shrink: 0;
-    margin-left: var(--spacing-2);
-    padding: 1px var(--spacing-2);
-    border-radius: var(--border-radius-full);
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    font-size: var(--text-xs);
-    font-weight: var(--font-weight-semibold);
+    margin-right: -2px;
+    color: var(--warning-600);
+    font-size: 10px;
+}
+
+[data-theme="dark"] .lock-mark {
+    color: var(--warning-200);
 }
 
 .icon-btn.is-on {
@@ -887,6 +963,13 @@ export default {
 /* 잠근 목은 손대는 자리가 늘 보여야 한다 — 풀려면 그 단추를 찾아야 하므로 */
 .row-mok.is-locked .row-acts {
     opacity: 1;
+}
+
+.empty {
+    padding: var(--spacing-6) var(--spacing-3);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    text-align: center;
 }
 
 .search-note {
@@ -909,9 +992,14 @@ export default {
         opacity: 1;
     }
 
+    .row {
+        min-height: 36px;
+    }
+
     .icon-btn {
-        width: 34px;
-        height: 34px;
+        width: 32px;
+        height: 32px;
+        font-size: var(--text-sm);
     }
 }
 </style>

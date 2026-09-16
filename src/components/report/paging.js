@@ -15,6 +15,8 @@
     - ref="stageTable" : 그 안에서 모든 줄을 담고 있는 table
   줄에 붙일 수 있는 표시:
     - keepWithNext : 다음 줄과 떨어지면 안 된다 (항 머리만 남기지 않기)
+    - keepWithPrev : 앞줄과 떨어지면 안 된다 (총계만 덜렁 넘어가지 않기)
+    - inGroup      : 묶음에 속한 줄. 쪽을 넘어갈 때 '(이어서)' 머리를 받는다
     - groupHead / groupEnd : 묶음의 처음과 끝. 묶음이 쪽을 넘어가면
       pageContinuationRow()로 '(이어서)' 머리를 다시 얹는다
 */
@@ -129,15 +131,33 @@ export default {
 
                 // 첫 줄은 아무리 커도 일단 놓는다. 안 그러면 갈 곳이 없다
                 if (current.length && used + need > limit) {
+                    /*
+                        총계처럼 앞과 붙어 있어야 뜻이 통하는 줄이 혼자 새 쪽으로 넘어가면
+                        '총계'만 덜렁 적힌 종이가 한 장 생긴다. 앞줄을 하나 데리고 넘어간다.
+                    */
+                    let carried = null
+                    const last = current[current.length - 1]
+                    if (row.keepWithPrev && current.length > 1 && !last.groupHead) {
+                        current.pop()
+                        carried = { row: last, height: heights[index - 1] }
+                    }
+
                     flush()
 
-                    // 묶음이 쪽을 넘어가면 무슨 항인지 다시 알려 준다
-                    if (group && !row.groupHead && this.pageContinuationRow) {
+                    // 묶음이 쪽을 넘어가면 무슨 항인지 다시 알려 준다.
+                    // 총계처럼 어느 항에도 속하지 않는 줄 앞에는 얹지 않는다 — 빈 머리만 남는다
+                    const opener = carried ? carried.row : row
+                    if (group && opener.inGroup && this.pageContinuationRow) {
                         const continued = this.pageContinuationRow(group)
                         if (continued) {
                             current.push(continued)
                             used += groupHeight
                         }
+                    }
+
+                    if (carried) {
+                        current.push(carried.row)
+                        used += carried.height
                     }
                 }
 

@@ -1335,7 +1335,10 @@ export default {
 .ledger-wrap {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-3);
+    gap: var(--spacing-2);
+    /* 장부 탭이 화면 높이를 잡아 두었다. 그 안에서 남는 자리를 표가 받는다 */
+    flex: 1;
+    min-height: 0;
 }
 
 /* ============================================
@@ -1348,15 +1351,29 @@ export default {
     gap: var(--spacing-3);
 }
 
+.ledger-summary,
+.ledger-controls {
+    flex-shrink: 0;
+}
+
+/* 이름과 숫자를 한 줄에 둔다. 세로로 쌓으면 넉 장이 90px을 먹고 표가 그만큼 짧아진다 */
 .summary-item {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: var(--spacing-3) var(--spacing-4);
+    align-items: baseline;
+    gap: var(--spacing-2);
+    padding: var(--spacing-2) var(--spacing-3);
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-left: 3px solid var(--border-color-strong);
     border-radius: var(--border-radius-lg);
+}
+
+.summary-item .label {
+    flex-shrink: 0;
+}
+
+.summary-item .value {
+    margin-left: auto;
 }
 
 .summary-item .label {
@@ -1366,7 +1383,7 @@ export default {
 }
 
 .summary-item .value {
-    font-size: var(--text-xl);
+    font-size: var(--text-lg);
     font-weight: var(--font-weight-bold);
     color: var(--text-primary);
     line-height: var(--line-height-tight);
@@ -1491,13 +1508,20 @@ export default {
    ============================================ */
 
 .ledger-table-wrapper {
+    /*
+        자리를 잡아 두어야 한다.
+        .sr-only는 position:absolute인데, 기댈 조상이 없으면 문서 전체를 기준으로 놓인다.
+        그러면 표 안쪽 깊숙한 줄의 숨은 글이 문서 바닥을 900px 가까이 늘려서,
+        표는 표대로 구르고 페이지는 페이지대로 구르는 이상한 화면이 됐다.
+    */
+    position: relative;
     background: var(--bg-primary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-xl);
     overflow: auto;
-    /* 머리줄이 붙어 있을 자리를 남긴다 */
-    max-height: calc(100vh - 320px);
-    min-height: 180px;
+    /* 위 부속이 쓰고 남은 자리를 전부 받는다 — 화면이 커지면 표도 같이 커진다 */
+    flex: 1;
+    min-height: 160px;
 }
 
 table.ledger {
@@ -1717,6 +1741,7 @@ tr.ledger_row.is-cursor-row td {
 }
 
 .grid-hint {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: var(--spacing-1);
