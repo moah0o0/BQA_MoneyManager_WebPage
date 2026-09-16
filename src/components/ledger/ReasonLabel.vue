@@ -29,7 +29,9 @@
         :disabled="disabled"
         :tabindex="tabindex"
         :aria-label="isEmpty
-            ? `장부내용 미입력${placeholder ? `. 거래 적요는 ${placeholder}` : ''} — 눌러서 입력`
+            ? (placeholder
+                ? `장부내용 미입력. 눌러서 입력하면 거래 적요 ${placeholder} 가 미리 적힙니다`
+                : '장부내용 미입력 — 눌러서 입력')
             : `장부내용: ${label}. 눌러서 수정`"
         @click="open"
         @keydown="onKeydown"
@@ -84,15 +86,31 @@ export default {
     watch: {
         isOpen(open){
             if (!open) return
-            // 글자를 쳐서 열었으면 그 글자부터 적는다 (칸에 바로 타자하는 것과 같게)
-            this.editText = this.initialText !== null
+
+            /*
+              빈 칸을 열면 은행 적요를 미리 적어 둔다.
+              장부내용은 열에 아홉이 적요를 그대로 쓰거나 조금 고쳐 쓰는 자리라,
+              빈 칸에서 매번 새로 치게 할 까닭이 없다 — Enter 한 번이면 그대로 들어간다.
+            */
+            const suggested = this.isEmpty && this.placeholder ? this.placeholder : ''
+            const fromTyping = this.initialText !== null
+
+            this.editText = fromTyping
                 ? this.initialText
-                : (this.originalReasonText || '')
+                : (this.originalReasonText || suggested)
+
             this.$nextTick(() => {
                 const el = this.$refs.inputRef
-                el?.focus()
-                // 끝에 커서를 둔다 — 전체 선택이면 이어 적으려다 지워 버린다
-                el?.setSelectionRange(el.value.length, el.value.length)
+                if (!el) return
+                el.focus()
+
+                /*
+                  미리 적어 둔 적요는 '내가 쓴 글'이 아니라 '쓸까요?'라는 제안이다.
+                  통째로 골라 둬야 그대로 쓰려면 Enter, 아니면 바로 쳐서 갈아 쓸 수 있다.
+                  내가 적어 둔 글은 이어 쓰도록 끝에 커서를 둔다.
+                */
+                if (!fromTyping && this.isEmpty && suggested) el.select()
+                else el.setSelectionRange(el.value.length, el.value.length)
             })
         }
     },
