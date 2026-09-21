@@ -53,6 +53,7 @@ export default {
                     label: '기록',
                     items: [
                         { id: 1, name: '장부', icon: 'bi-wallet2' },
+                        { id: 4, name: '거래내역', icon: 'bi-bank' },
                     ]
                 },
                 {

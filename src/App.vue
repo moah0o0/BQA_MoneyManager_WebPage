@@ -57,6 +57,12 @@
           :init-date="ORGANIZATION_INIT_DATE"
           :organization-name="ORGANIZATION_NAME"
         />
+
+        <TabTransaction
+          v-if="currentMenu == 4"
+          :login-status="loginStatus"
+          :init-date="ORGANIZATION_INIT_DATE"
+        />
       </template>
     </main>
   </div>
@@ -71,6 +77,7 @@ import BarMenu from './components/layout/BarMenu.vue'
 import TabLedger from './components/ledger/TabLedger.vue'
 import TabAssets from './components/assets/TabAssets.vue'
 import TabReport from './components/report/TabReport.vue'
+import TabTransaction from './components/transaction/TabTransaction.vue'
 
 const pb = new PocketBase(__POCKETBASE_API_BASE_URL__)
 
@@ -79,6 +86,7 @@ const MENU_TITLES = {
   1: '장부',
   2: '계정과목',
   3: '공금보고서',
+  4: '거래내역',
 }
 
 export default {
@@ -86,6 +94,7 @@ export default {
     TabLedger,
     TabAssets,
     TabReport,
+    TabTransaction,
     BarHeader,
     BarMenu
   },
